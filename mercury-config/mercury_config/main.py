@@ -280,10 +280,8 @@ def _run(args: argparse.Namespace) -> int:
                 "Adopt this device? (Sets AP password to managed password)", default=True
             ):
                 cdc.adopt_device(ser)
-                ui.info(
-                    "Password takes effect after reboot into WiFi mode. "
-                    "The device needs a power cycle."
-                )
+                # adopt_device closes the port (Mercury reboots)
+                _state.serial_port = None
                 session_log.log("cdc", f"Device adopted: {device_serial}")
             else:
                 ui.warn("Proceeding without adopting — WiFi password may differ")

@@ -20,7 +20,8 @@ from mercury_config.devices import MANAGED_PASSWORD
 CDC_BAUD = 115200  # Irrelevant for USB CDC, but pyserial requires a value
 CDC_READ_TIMEOUT_S = 3
 CDC_FLUSH_WAIT_S = 0.2
-CDC_BOOT_SETTLE_S = 5.0  # Wait after port open for firmware command loop
+CDC_READY_TIMEOUT_S = 20  # Total time to poll for CDC readiness
+CDC_READY_POLL_S = 2.0  # Delay between readiness attempts
 CDC_SEND_RETRIES = 3
 CDC_RETRY_DELAY_S = 1.0
 
@@ -227,13 +228,93 @@ def get_usb_serial(usb_serial_from_sysfs: str) -> str | None:
 def adopt_device(ser: serial.Serial) -> None:
     """Set the AP password to the managed password via CDC.
 
-    Sends app<password>& command. Takes effect after reboot into WiFi mode.
+    Sends app<password>& command. The Mercury reboots after this —
+    the serial port is closed before returning. Callers must not
+    reuse the serial handle.
     """
     command = f"app{MANAGED_PASSWORD}&"
-    response = send_command(ser, command)
-    session_log.log("cdc", f"Adopt response: {response!r}")
-    ui.success(f"AP password set to managed password")
-    ui.info("Password takes effect after next reboot into WiFi mode.")
+    try:
+        response = send_command(ser, command)
+        session_log.log("cdc", f"Adopt response: {response!r}")
+    except (CDCError, SerialException, OSError) as e:
+        # Device may reboot before we read the response — that's OK
+        session_log.log("cdc", f"Adopt send error (expected on reboot): {e}")
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+    ui.success("AP password set to managed password")
+    ui.info("Device will reboot — serial port closed.")
+
+
+def _poll_until_ready(
+    port_path: str,
+) -> tuple[serial.Serial, str | None, str]:
+    """Poll until Mercury responds to ver& over CDC.
+
+    Handles the full boot sequence: USB re-enumeration, phantom readiness,
+    and transient I/O errors. Retries discover → open → ver& in a loop.
+
+    Args:
+        port_path: Initial port path from discovery.
+
+    Returns:
+        (open_serial_port, boot_serial_or_None, firmware_version)
+
+    Raises:
+        CDCError: If Mercury never responds within CDC_READY_TIMEOUT_S.
+        FirmwareTooOld: If firmware is pre-2.30.
+    """
+    deadline = time.monotonic() + CDC_READY_TIMEOUT_S
+    attempt = 0
+    last_err: Exception | None = None
+
+    ui.info("Waiting for Mercury to boot...")
+
+    while time.monotonic() < deadline:
+        attempt += 1
+
+        # Re-discover port each attempt — device may re-enumerate
+        refreshed = discovery.find_mercury_port()
+        if not refreshed:
+            session_log.log("cdc", f"Attempt {attempt}: no device found, retrying")
+            time.sleep(CDC_READY_POLL_S)
+            continue
+
+        if refreshed != port_path:
+            session_log.log(
+                "cdc", f"Port changed: {port_path} -> {refreshed}"
+            )
+            port_path = refreshed
+
+        try:
+            ser = open_port(port_path)
+        except CDCError as e:
+            last_err = e
+            session_log.log("cdc", f"Attempt {attempt}: open failed: {e}")
+            time.sleep(CDC_READY_POLL_S)
+            continue
+
+        try:
+            boot_serial = try_capture_boot_serial(ser)
+            firmware = query_firmware_version(ser)
+            return ser, boot_serial, firmware
+        except FirmwareTooOld:
+            # Real error, not transient — don't retry
+            ser.close()
+            raise
+        except (CDCError, SerialException, OSError) as e:
+            last_err = e
+            session_log.log("cdc", f"Attempt {attempt}: CDC failed: {e}")
+            ser.close()
+            time.sleep(CDC_READY_POLL_S)
+            continue
+
+    raise CDCError(
+        f"Mercury did not respond within {CDC_READY_TIMEOUT_S}s "
+        f"({attempt} attempts). Last error: {last_err}"
+    )
 
 
 def identify_device(
@@ -256,28 +337,7 @@ def identify_device(
     """
     ui.section("DEVICE IDENTIFICATION")
 
-    # Wait for firmware to finish booting before opening the port.
-    # ESP32-C6 may re-enumerate USB during boot — opening early gives
-    # a file descriptor that goes stale when the device resets.
-    ui.info("Waiting for firmware to initialise...")
-    time.sleep(CDC_BOOT_SETTLE_S)
-
-    # Re-discover port — device may have re-enumerated during boot,
-    # moving from e.g. ttyACM0 to ttyACM1.
-    refreshed = discovery.find_mercury_port()
-    if refreshed:
-        if refreshed != port_path:
-            session_log.log("cdc", f"Port changed after settle: {port_path} -> {refreshed}")
-            ui.info(f"Device re-enumerated: {refreshed}")
-        port_path = refreshed
-
-    ser = open_port(port_path)
-
-    # Try to catch boot banner first (if device just powered on)
-    boot_serial = try_capture_boot_serial(ser)
-
-    # Query firmware version
-    firmware = query_firmware_version(ser)
+    ser, boot_serial, firmware = _poll_until_ready(port_path)
     ui.success(f"Firmware: {firmware}")
 
     # Determine serial number (MAC)
