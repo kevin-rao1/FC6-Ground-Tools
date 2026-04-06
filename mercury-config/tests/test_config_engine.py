@@ -319,3 +319,40 @@ class TestPromptQnhHardened:
             )
         assert result == "1013.25"
         assert mock_ui.prompt.call_count == 2
+
+
+from mercury_config.config_engine import check_revision_crossmatch
+
+
+class TestRevisionCrossmatch:
+    """Detect when device sample_speed contradicts stored revision."""
+
+    @patch("mercury_config.warnings")
+    def test_rev2_with_correct_sample_speed(self, mock_warnings) -> None:
+        golden = load_golden(2)
+        device_settings = {"sample_speed": "50"}
+        check_revision_crossmatch(golden, device_settings)
+        mock_warnings.register.assert_not_called()
+
+    @patch("mercury_config.warnings")
+    def test_rev3_with_correct_sample_speed(self, mock_warnings) -> None:
+        golden = load_golden(3)
+        device_settings = {"sample_speed": "100"}
+        check_revision_crossmatch(golden, device_settings)
+        mock_warnings.register.assert_not_called()
+
+    @patch("mercury_config.warnings")
+    def test_rev2_with_wrong_sample_speed(self, mock_warnings) -> None:
+        golden = load_golden(2)
+        device_settings = {"sample_speed": "100"}
+        check_revision_crossmatch(golden, device_settings)
+        mock_warnings.register.assert_called_once()
+        call_args = mock_warnings.register.call_args
+        assert call_args[0][0] == "revision_mismatch"
+
+    @patch("mercury_config.warnings")
+    def test_missing_sample_speed_no_crash(self, mock_warnings) -> None:
+        golden = load_golden(2)
+        device_settings = {}
+        check_revision_crossmatch(golden, device_settings)
+        mock_warnings.register.assert_not_called()

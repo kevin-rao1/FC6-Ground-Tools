@@ -151,6 +151,36 @@ def values_equal(actual: str, expected: str) -> bool:
         return False
 
 
+def check_revision_crossmatch(
+    golden: GoldenConfig,
+    device_settings: dict[str, str],
+) -> None:
+    """Check that device sample_speed matches golden config expectation.
+
+    If the device reports a sample_speed that contradicts the loaded golden
+    config, the stored revision may be wrong. Registers a warning — does
+    not block.
+    """
+    if "sample_speed" not in golden.fields:
+        return
+    expected = golden.fields["sample_speed"].value
+    if expected is None:
+        return
+
+    actual = device_settings.get("sample_speed")
+    if actual is None:
+        return  # Field not present — can't cross-check
+
+    if not values_equal(actual, expected):
+        from mercury_config import warnings
+        warnings.register(
+            "revision_mismatch",
+            f"Device sample_speed is {actual} but Rev.{golden.revision} "
+            f"golden config expects {expected}. Verify the PCB revision "
+            f"label is correct.",
+        )
+
+
 def print_config_report(
     diff: list[DiffEntry],
     serial: str | None,
