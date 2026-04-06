@@ -7,7 +7,7 @@ name = "mercury-config"
 version = "0.1.0"
 description = "Mercury V1 altimeter flight configuration tool for FC6"
 requires-python = ">=3.10"
-license = "MIT"
+license = "GPL-3.0-or-later"
 dependencies = [
     "pyserial>=3.5",
     "requests>=2.28",

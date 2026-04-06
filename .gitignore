@@ -14,5 +14,8 @@ venv/
 # Pytest
 .pytest_cache/
 
+# AUR PKGBUILDs — published via separate AUR repos
+aur/
+
 # Tool state
 .mercury-config/
