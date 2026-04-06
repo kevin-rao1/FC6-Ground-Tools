@@ -19,8 +19,10 @@ from mercury_config import discovery
 from mercury_config import http_config
 from mercury_config import session_log
 from mercury_config import ui
+from mercury_config import warnings
 from mercury_config import weather
 from mercury_config import wifi
+from mercury_config import checkpoint
 
 
 class _SessionState:
@@ -34,6 +36,9 @@ class _SessionState:
         self.qnh_value: str | None = None
         self.config_pushed = False
         self.config_verified = False
+        self.launch_site: str | None = None
+        self.browser_opened = False
+        self.second_verify_passed = False
 
 
 _state = _SessionState()
@@ -125,6 +130,7 @@ def _run(args: argparse.Namespace) -> int:
     """Run the full configuration flow. Returns exit code (0=success)."""
     global _state
     _state = _SessionState()
+    warnings.clear()
 
     ui.banner()
 
@@ -143,13 +149,44 @@ def _run(args: argparse.Namespace) -> int:
         session_log.log("session", f"Environment check failed: {e}")
         return 1
 
+    # 0.5 — Taint check: scan for incomplete sessions
+    stale_sessions = checkpoint.scan_all()
+    if stale_sessions:
+        for stale in stale_sessions:
+            ui.warn(
+                f"Incomplete session for {stale['serial']} "
+                f"started at {stale.get('started', 'unknown')}. "
+                f"Reached: {stale.get('phase_reached', 'unknown')}."
+            )
+            if stale.get("config_pushed") and not stale.get("second_verify_passed"):
+                ui.error(
+                    f"Config was pushed but not fully verified for "
+                    f"{stale['serial']}. Device may have unverified configuration."
+                )
+            stale_warnings = stale.get("warnings", [])
+            if stale_warnings:
+                ui.info(f"  Warnings from that session:")
+                for w in stale_warnings:
+                    ui.info(f"    [{w['category']}] {w['message']}")
+        session_log.log("session", f"Found {len(stale_sessions)} stale checkpoint(s)")
+
+    # 0.6 — Launch site selection
+    ui.section("LAUNCH SITE")
+    site_display = ui.prompt_choice(
+        "Select launch site",
+        weather.get_site_names(),
+    )
+    launch_site = weather.parse_site_name(site_display)
+    _state.launch_site = launch_site
+    session_log.log("session", f"Launch site: {launch_site}")
+
     # 0.7 — Pre-fetch QNH (if internet available)
     prefetched_qnh: float | None = None
     if internet_available:
-        ui.info("Pre-fetching QNH from weather API...")
-        prefetched_qnh = weather.fetch_qnh()
+        ui.info(f"Pre-fetching QNH for {launch_site}...")
+        prefetched_qnh = weather.fetch_qnh(launch_site)
         if prefetched_qnh is not None:
-            ui.success(f"QNH forecast: {prefetched_qnh:.1f} hPa")
+            ui.success(f"QNH forecast ({launch_site}): {prefetched_qnh:.1f} hPa")
         else:
             ui.warn("QNH fetch failed — you'll need to enter it manually")
 
@@ -193,8 +230,29 @@ def _run(args: argparse.Namespace) -> int:
     if device_serial:
         session_log.rename_with_serial(device_serial)
 
-    # 2.6 — Hardware revision
-    revision = cdc.ask_hardware_revision()
+    # 2.6 — Hardware revision (from managed devices or physical inspection)
+    revision: int | None = None
+    if device_serial and devices.is_managed(device_serial):
+        record = devices.lookup(device_serial)
+        if record and "revision" in record:
+            revision = record["revision"]
+            sensor = "BMP390" if revision == 2 else "BMP581"
+            ui.success(f"Stored revision: Rev.{revision} ({sensor})")
+            session_log.log("cdc", f"Revision from managed devices: {revision}")
+    if revision is None:
+        revision = cdc.ask_hardware_revision()
+
+    # 2.7 — Rev.2 warning
+    if revision == 2:
+        warnings.register(
+            "rev2",
+            "Rev.2 Mercury detected. FC6 expects 80 Hz data from Rev.3 "
+            "(BMP581). Rev.2 (BMP390) outputs at 50 Hz. If using this "
+            "device with FC6, you MUST review config_tunable.h \u2014 "
+            "MERCURY_OUTPUT_RATE_HZ and all dependent constexprs (MPC "
+            "rate, FSM timing). Rebuild and reflash FC6. Verify the "
+            "config hash FC6 reports on boot matches your build.",
+        )
 
     # 2.9 — Print device identity
     ui.device_identity(device_serial or "unknown", revision, firmware)
@@ -223,6 +281,31 @@ def _run(args: argparse.Namespace) -> int:
                 session_log.log("cdc", f"Device adopted: {device_serial}")
             else:
                 ui.warn("Proceeding without adopting — WiFi password may differ")
+
+    # 2.10a — Create taint checkpoint
+    if device_serial:
+        checkpoint.write(device_serial, {
+            "serial": device_serial,
+            "revision": revision,
+            "firmware": firmware,
+            "phase_reached": "phase2_identity",
+            "config_pushed": False,
+            "first_verify_passed": False,
+            "browser_opened": False,
+            "second_verify_passed": False,
+            "qnh_value": None,
+            "launch_site": launch_site,
+            "warnings": warnings.serialise(),
+        })
+
+    # 2.10b — Cross-device taint warning
+    for stale in stale_sessions:
+        if stale["serial"] != device_serial:
+            warnings.register(
+                "tainted_device",
+                f"Unresolved session for {stale['serial']}. That device "
+                f"may have unverified config.",
+            )
 
     # Load the correct golden config
     golden = config_engine.load_golden(revision)
@@ -316,6 +399,9 @@ def _run(args: argparse.Namespace) -> int:
         config_engine.print_golden_config_reference(golden)
         return 1
 
+    # 5.3 — Revision crossmatch check
+    config_engine.check_revision_crossmatch(golden, device_settings)
+
     # Save SSID mapping for new devices
     if device_serial and not devices.is_managed(device_serial):
         ssid_from_device = device_settings.get("wifiname", "")
@@ -339,7 +425,7 @@ def _run(args: argparse.Namespace) -> int:
 
     # --- Phase 7: Volatile Input (QNH) ---
     current_qnh = device_settings.get("sealevel", "1013.25")
-    qnh_value = config_engine.prompt_qnh(current_qnh, prefetched_qnh)
+    qnh_value = config_engine.prompt_qnh(current_qnh, prefetched_qnh, launch_site)
     _state.qnh_value = qnh_value
 
     # --- Phase 8: Config Push & Verify ---
@@ -367,10 +453,23 @@ def _run(args: argparse.Namespace) -> int:
 
     if not (_state.config_pushed and _state.config_verified):
         _state.config_pushed = True
+        if device_serial:
+            checkpoint.update(device_serial, {
+                "phase_reached": "phase8_push",
+                "config_pushed": True,
+                "warnings": warnings.serialise(),
+            })
         verified = config_engine.push_and_verify(
             golden, device_settings, device_outputs, qnh_value, device_serial
         )
         _state.config_verified = verified
+        if device_serial and verified:
+            checkpoint.update(device_serial, {
+                "phase_reached": "phase8_verified",
+                "first_verify_passed": True,
+                "qnh_value": qnh_value,
+                "warnings": warnings.serialise(),
+            })
 
         if not verified:
             ui.mercury_no_go("Write verification failed")
@@ -393,21 +492,142 @@ def _run(args: argparse.Namespace) -> int:
                 session_log.log("session", "Final result: NO-GO (verification failed)")
                 return 1
 
-    # --- Phase 9: Flight Readiness ---
-    ui.mercury_is_go(device_serial or "unknown", revision, firmware)
-
-    # Offer calibration before disconnecting WiFi
-    if ui.prompt_yn("Open Mercury web UI for calibration before disconnect?", default=False):
+    # --- Phase 8.5: Optional Browser Calibration ---
+    ui.section("CALIBRATION")
+    if ui.prompt_yn("Do you need to calibrate in the browser?", default=False):
         import webbrowser
-        ui.warn("Any changes made in the browser are NOT verified by this tool.")
+        warnings.register(
+            "browser",
+            "Browser calibration session was opened \u2014 config may have "
+            "been modified outside this tool.",
+        )
         ui.info("Opening http://192.168.0.1/settings/ in browser...")
         session_log.log("session", "User opened web UI for manual calibration")
         webbrowser.open("http://192.168.0.1/settings/")
         ui.prompt("Press Enter when finished with calibration... ")
         session_log.log("session", "User returned from manual calibration")
+        _state.browser_opened = True
+        if device_serial:
+            checkpoint.update(device_serial, {
+                "phase_reached": "phase8_5_browser",
+                "browser_opened": True,
+                "warnings": warnings.serialise(),
+            })
+
+    # --- Phase 8.6: Second Verification Pass ---
+    ui.section("SECOND VERIFICATION")
+    ui.info("Re-reading device config for final verification...")
+
+    try:
+        readback_settings = http_config.read_settings(device_serial)
+    except http_config.HTTPConfigError as e:
+        ui.fatal(f"Second verification read failed: {e}")
+        session_log.log("session", f"Second verify settings read failed: {e}")
+        return 1
+
+    try:
+        readback_outputs = http_config.read_outputs(device_serial)
+    except http_config.HTTPConfigError as e:
+        ui.fatal(f"Second verification read failed: {e}")
+        session_log.log("session", f"Second verify outputs read failed: {e}")
+        return 1
+
+    second_diff = config_engine.diff_config(golden, readback_settings, readback_outputs)
+    second_mismatches = config_engine.print_config_report(
+        second_diff, device_serial, revision, firmware
+    )
+
+    # Check fixed fields
+    if second_mismatches > 0:
+        ui.mercury_no_go(
+            "Second verification failed \u2014 fixed fields do not match "
+            "golden config. Re-run required."
+        )
+        session_log.log("session", "Final result: NO-GO (second verify failed)")
+        return 1
+
+    # Check QNH matches what was entered
+    readback_qnh = readback_settings.get("sealevel", "")
+    if not config_engine.values_equal(readback_qnh, qnh_value):
+        ui.mercury_no_go(
+            f"QNH mismatch on second verification: device has "
+            f"{readback_qnh}, expected {qnh_value}. Re-run required."
+        )
+        session_log.log(
+            "session",
+            f"Final result: NO-GO (QNH mismatch: {readback_qnh} vs {qnh_value})",
+        )
+        return 1
+
+    ui.success("Second verification passed. All fields confirmed.")
+    _state.second_verify_passed = True
+    if device_serial:
+        checkpoint.update(device_serial, {
+            "phase_reached": "phase8_6_second_verify",
+            "second_verify_passed": True,
+            "warnings": warnings.serialise(),
+        })
+
+    # --- Phase 9: Flight Readiness Review ---
+    ssid = _state.mercury_ssid or device_settings.get("wifiname", "unknown")
+    site_display = f"{launch_site} ({weather.LAUNCH_SITES[launch_site]['label']})"
+
+    ui.flight_readiness_summary(
+        serial=device_serial or "unknown",
+        revision=revision,
+        ssid=ssid,
+        qnh=qnh_value,
+        launch_site=site_display,
+    )
+
+    # 9.2 — Warning replay
+    all_warnings = warnings.get_all()
+    ui.warning_replay(all_warnings)
+
+    # 9.3 — Airframe designation
+    ui.section("AIRFRAME DESIGNATION")
+    stored_airframe: str | None = None
+    if device_serial:
+        record = devices.lookup(device_serial)
+        if record:
+            stored_airframe = record.get("airframe")
+    if stored_airframe:
+        ui.info(f"Stored: {stored_airframe}")
+    ui.info("Format: C6A <rocket name> - <rocket model>")
+
+    while True:
+        airframe = ui.prompt("Airframe designation: ")
+        if airframe:
+            break
+        ui.warn("Airframe designation is required.")
+
+    # Save airframe to managed devices
+    if device_serial:
+        all_devices = devices.load()
+        if device_serial in all_devices:
+            all_devices[device_serial]["airframe"] = airframe
+            devices.save(all_devices)
+    session_log.log("session", f"Airframe: {airframe}")
+
+    # 9.4 — Final GO
+    ui.prompt_exact("Type GO to confirm flight readiness: ", "GO")
+
+    # --- MERCURY IS GO ---
+    ui.mercury_is_go(device_serial or "unknown", revision, firmware)
+    ui.info(f"Airframe: {airframe}")
+
+    session_log.log(
+        "session",
+        f"Final result: GO | Serial={device_serial} Rev{revision} "
+        f"FW={firmware} QNH={qnh_value} Site={launch_site} "
+        f"Airframe={airframe} Warnings={warnings.count()}",
+    )
+
+    # Delete taint checkpoint — successful GO
+    if device_serial:
+        checkpoint.delete(device_serial)
 
     ui.post_flight_instructions()
-    session_log.log("session", "Final result: GO")
 
     return 0
 
