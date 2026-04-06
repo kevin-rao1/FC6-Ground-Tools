@@ -97,7 +97,12 @@ def _teardown(interrupted: bool = False) -> None:
 
         # Print state summary on interrupt
         if interrupted:
-            if _state.config_pushed and not _state.config_verified:
+            if _state.second_verify_passed:
+                ui.warn(
+                    "Config was verified but GO was NOT confirmed. "
+                    "Re-run required before flight."
+                )
+            elif _state.config_pushed and not _state.config_verified:
                 ui.error(
                     "Config was pushed but NOT verified. "
                     "Check device config manually before flight."
@@ -131,6 +136,7 @@ def _run(args: argparse.Namespace) -> int:
     global _state
     _state = _SessionState()
     warnings.clear()
+    stale_sessions: list = []
 
     ui.banner()
 
@@ -297,6 +303,10 @@ def _run(args: argparse.Namespace) -> int:
             "launch_site": launch_site,
             "warnings": warnings.serialise(),
         })
+
+    else:
+        ui.warn("No device serial — taint checkpoint cannot be created.")
+        session_log.log("session", "No device serial — no taint protection")
 
     # 2.10b — Cross-device taint warning
     for stale in stale_sessions:
@@ -570,7 +580,7 @@ def _run(args: argparse.Namespace) -> int:
 
     # --- Phase 9: Flight Readiness Review ---
     ssid = _state.mercury_ssid or device_settings.get("wifiname", "unknown")
-    site_display = f"{launch_site} ({weather.LAUNCH_SITES[launch_site]['label']})"
+    # site_display was set in Phase 0.6 by ui.prompt_choice()
 
     ui.flight_readiness_summary(
         serial=device_serial or "unknown",
@@ -595,11 +605,15 @@ def _run(args: argparse.Namespace) -> int:
         ui.info(f"Stored: {stored_airframe}")
     ui.info("Format: C6A <rocket name> - <rocket model>")
 
-    while True:
+    _MAX_AIRFRAME_ATTEMPTS = 100
+    airframe = ""
+    for _ in range(_MAX_AIRFRAME_ATTEMPTS):
         airframe = ui.prompt("Airframe designation: ")
         if airframe:
             break
         ui.warn("Airframe designation is required.")
+    else:
+        raise RuntimeError("Exceeded maximum attempts for airframe designation")
 
     # Save airframe to managed devices
     if device_serial:

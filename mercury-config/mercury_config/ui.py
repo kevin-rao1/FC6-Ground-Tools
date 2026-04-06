@@ -221,9 +221,11 @@ def prompt_yn(msg: str, default: bool = False) -> bool:
 
 def prompt_choice(msg: str, options: list[str]) -> str:
     """Prompt user to pick from a list of options. Returns the chosen option."""
+    assert len(options) > 0, "prompt_choice called with empty options list"
     for i, opt in enumerate(options, 1):
         print(f"   [{i}] {opt}")
-    while True:
+    _MAX_ATTEMPTS = 100
+    for _ in range(_MAX_ATTEMPTS):
         raw = prompt(f"{msg} [1-{len(options)}]: ")
         try:
             idx = int(raw)
@@ -231,19 +233,27 @@ def prompt_choice(msg: str, options: list[str]) -> str:
                 return options[idx - 1]
         except ValueError:
             pass
+        if not sys.stdin.isatty():
+            raise EOFError("Non-interactive stdin cannot make a choice")
         warn(f"Enter a number between 1 and {len(options)}.")
+    raise RuntimeError(f"Exceeded {_MAX_ATTEMPTS} attempts for choice prompt")
 
 
 def prompt_exact(msg: str, expected: str) -> None:
     """Prompt until the user types the exact expected string.
 
     Case-sensitive, no shortcuts. Used for ACCEPT and GO gates.
+    Raises EOFError if stdin is exhausted.
     """
-    while True:
+    _MAX_ATTEMPTS = 100
+    for _ in range(_MAX_ATTEMPTS):
         response = prompt(msg)
         if response == expected:
             return
+        if not sys.stdin.isatty():
+            raise EOFError(f"Non-interactive stdin cannot provide '{expected}'")
         warn(f"Type {expected} exactly to proceed.")
+    raise RuntimeError(f"Exceeded {_MAX_ATTEMPTS} attempts for exact prompt")
 
 
 def flight_readiness_summary(
