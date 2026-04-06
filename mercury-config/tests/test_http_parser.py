@@ -144,23 +144,25 @@ class TestParserAgainstRealHTML:
     These tests are skipped if the dump files are not present (e.g. in CI).
     """
 
-    SETTINGS_PATH = Path(__file__).resolve().parent.parent.parent / (
+    SETTINGS_PATH = Path(__file__).resolve().parent.parent / (
         "Altimetercloud.com AltimeterAltimeter.html"
     )
-    OUTPUTS_PATH = Path(__file__).resolve().parent.parent.parent / (
+    OUTPUTS_PATH = Path(__file__).resolve().parent.parent / (
         "Altimetercloud.com AltimeterAltimeter outputs.html"
     )
 
     @pytest.fixture
     def settings_html(self) -> str:
-        if not self.SETTINGS_PATH.exists():
-            pytest.skip("Settings HTML dump not available")
+        assert self.SETTINGS_PATH.exists(), (
+            f"Settings HTML dump missing: {self.SETTINGS_PATH}"
+        )
         return self.SETTINGS_PATH.read_text()
 
     @pytest.fixture
     def outputs_html(self) -> str:
-        if not self.OUTPUTS_PATH.exists():
-            pytest.skip("Outputs HTML dump not available")
+        assert self.OUTPUTS_PATH.exists(), (
+            f"Outputs HTML dump missing: {self.OUTPUTS_PATH}"
+        )
         return self.OUTPUTS_PATH.read_text()
 
     def test_settings_field_count(self, settings_html: str) -> None:
