@@ -234,6 +234,53 @@ def prompt_choice(msg: str, options: list[str]) -> str:
         warn(f"Enter a number between 1 and {len(options)}.")
 
 
+def prompt_exact(msg: str, expected: str) -> None:
+    """Prompt until the user types the exact expected string.
+
+    Case-sensitive, no shortcuts. Used for ACCEPT and GO gates.
+    """
+    while True:
+        response = prompt(msg)
+        if response == expected:
+            return
+        warn(f"Type {expected} exactly to proceed.")
+
+
+def flight_readiness_summary(
+    serial: str,
+    revision: int,
+    ssid: str,
+    qnh: str,
+    launch_site: str,
+) -> None:
+    """Print the Phase 9 summary block."""
+    section("FLIGHT READINESS REVIEW")
+    info(f"Serial:    {_bold_white()}{serial}{_reset()}")
+    info(f"Revision:  Rev.{revision} ({'BMP390' if revision == 2 else 'BMP581'})")
+    info(f"SSID:      {ssid}")
+    info(f"QNH:       {qnh} hPa")
+    info(f"Site:      {launch_site}")
+    print()
+
+
+def warning_replay(warnings_list: list[tuple[str, str]]) -> None:
+    """Replay all flight-safety warnings, demanding ACCEPT for each.
+
+    Args:
+        warnings_list: List of (category, message) tuples.
+    """
+    if not warnings_list:
+        info("No warnings to review.")
+        return
+
+    total = len(warnings_list)
+    for i, (_category, message) in enumerate(warnings_list, 1):
+        print()
+        print(f"   {_yellow()}\u26a0 [{i}/{total}] {message}{_reset()}")
+        prompt_exact("Type ACCEPT to acknowledge: ", "ACCEPT")
+        success(f"Warning {i}/{total} acknowledged.")
+
+
 def banner() -> None:
     """Print startup banner. Forces terminal background to C6 Void."""
     _force_bg()
