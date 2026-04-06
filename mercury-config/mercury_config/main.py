@@ -111,6 +111,8 @@ def _teardown(interrupted: bool = False) -> None:
     except Exception as e:
         # Teardown must not raise
         print(f"   Teardown error: {e}", file=sys.stderr)
+    finally:
+        ui.teardown()
 
 
 def _sigint_handler(signum: int, frame: object) -> None:

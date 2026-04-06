@@ -10,10 +10,20 @@ from __future__ import annotations
 import os
 import sys
 
-# Signal Pink: #e64097 -> RGB(230, 64, 151)
-_PINK_R, _PINK_G, _PINK_B = 230, 64, 151
+# C6 Accent: #e64097 -> RGB(230, 64, 151)
+_ACCENT_R, _ACCENT_G, _ACCENT_B = 230, 64, 151
+
+# Status colours — explicit RGB so terminal themes cannot remap them.
+_GREEN_R, _GREEN_G, _GREEN_B = 52, 211, 153      # success
+_AMBER_R, _AMBER_G, _AMBER_B = 251, 191, 36      # warning
+_RED_R, _RED_G, _RED_B = 248, 113, 113            # error
+_WHITE_R, _WHITE_G, _WHITE_B = 245, 245, 247      # C6 White — high-emphasis text
+
+# C6 Void background — forced on startup so transparency cannot leak through.
+_VOID_R, _VOID_G, _VOID_B = 10, 10, 11
 
 _supports_truecolor: bool | None = None
+_bg_forced = False
 
 
 def _check_truecolor() -> bool:
@@ -26,6 +36,30 @@ def _check_truecolor() -> bool:
     return _supports_truecolor
 
 
+def _force_bg() -> None:
+    """Set terminal background to Void via OSC 11. No-op if not a tty."""
+    global _bg_forced
+    if _bg_forced or not sys.stdout.isatty():
+        return
+    # OSC 11 — set terminal background colour.
+    # Format: rgb:RR/GG/BB with each component as a two-digit hex value.
+    sys.stdout.write(
+        f"\033]11;rgb:{_VOID_R:02x}/{_VOID_G:02x}/{_VOID_B:02x}\033\\"
+    )
+    sys.stdout.flush()
+    _bg_forced = True
+
+
+def _restore_bg() -> None:
+    """Reset terminal background to its default via OSC 112."""
+    global _bg_forced
+    if not _bg_forced or not sys.stdout.isatty():
+        return
+    sys.stdout.write("\033]112\033\\")
+    sys.stdout.flush()
+    _bg_forced = False
+
+
 def _sgr(code: str) -> str:
     """Wrap an SGR escape sequence. Returns empty string if not a tty."""
     if not sys.stdout.isatty():
@@ -33,14 +67,23 @@ def _sgr(code: str) -> str:
     return f"\033[{code}m"
 
 
-# --- Colour primitives ---
-
-def _pink() -> str:
+def _fg(r: int, g: int, b: int) -> str:
+    """24-bit foreground colour. Falls back to empty string if not a tty."""
     if not sys.stdout.isatty():
         return ""
     if _check_truecolor():
-        return f"\033[38;2;{_PINK_R};{_PINK_G};{_PINK_B}m"
-    # Fallback: closest 256-color (168 is a reasonable pink)
+        return f"\033[38;2;{r};{g};{b}m"
+    return ""
+
+
+# --- Colour primitives ---
+
+def _accent() -> str:
+    if not sys.stdout.isatty():
+        return ""
+    if _check_truecolor():
+        return f"\033[38;2;{_ACCENT_R};{_ACCENT_G};{_ACCENT_B}m"
+    # Fallback: closest 256-color (168)
     return "\033[38;5;168m"
 
 
@@ -53,26 +96,29 @@ def _bold() -> str:
 
 
 def _green() -> str:
-    return _sgr("32")
+    return _fg(_GREEN_R, _GREEN_G, _GREEN_B) or _sgr("32")
 
 
 def _yellow() -> str:
-    return _sgr("33")
+    return _fg(_AMBER_R, _AMBER_G, _AMBER_B) or _sgr("33")
 
 
 def _red() -> str:
-    return _sgr("31")
+    return _fg(_RED_R, _RED_G, _RED_B) or _sgr("31")
 
 
 def _bold_white() -> str:
+    fg = _fg(_WHITE_R, _WHITE_G, _WHITE_B)
+    if fg:
+        return _bold() + fg
     return _sgr("1;37")
 
 
 # --- Public output functions ---
 
 def section(title: str) -> None:
-    """Print a section header: // TITLE in Signal Pink."""
-    print(f"\n{_pink()}{_bold()}// {title.upper()}{_reset()}")
+    """Print a section header: // TITLE in C6 Accent."""
+    print(f"\n{_accent()}{_bold()}// {title.upper()}{_reset()}")
 
 
 def info(msg: str) -> None:
@@ -140,7 +186,7 @@ def device_identity(serial: str, revision: int, firmware: str) -> None:
 def mercury_is_go(serial: str, revision: int, firmware: str) -> None:
     """Print the final GO message. Must be unmissable."""
     print()
-    print(f"   {_pink()}{_bold()}// MERCURY IS GO{_reset()}")
+    print(f"   {_accent()}{_bold()}// MERCURY IS GO{_reset()}")
     print(
         f"   {_bold_white()}{serial}{_reset()}"
         f"  Rev{revision}  FW {firmware}"
@@ -157,9 +203,9 @@ def mercury_no_go(reason: str) -> None:
 
 
 def prompt(msg: str) -> str:
-    """Prompt user for input with Signal Pink // prefix. Returns stripped input."""
+    """Prompt user for input with C6 Accent // prefix. Returns stripped input."""
     try:
-        return input(f"   {_pink()}//{_reset()} {msg}").strip()
+        return input(f"   {_accent()}//{_reset()} {msg}").strip()
     except EOFError:
         return ""
 
@@ -189,8 +235,9 @@ def prompt_choice(msg: str, options: list[str]) -> str:
 
 
 def banner() -> None:
-    """Print startup banner."""
-    print(f"\n{_pink()}{_bold()}// MERCURY CONFIG TOOL{_reset()}  v0.1.0")
+    """Print startup banner. Forces terminal background to C6 Void."""
+    _force_bg()
+    print(f"\n{_accent()}{_bold()}// MERCURY CONFIG TOOL{_reset()}  v0.1.0")
     print(f"   FC6 Ground Tools — flight configuration for Mercury V1")
     print()
 
@@ -205,3 +252,8 @@ def post_flight_instructions() -> None:
     info("  4. Wait for green flashing LED (~8 seconds)")
     info("  5. Remember to check we're showing the green light to UKROCism before launch")
     print()
+
+
+def teardown() -> None:
+    """Restore terminal background to its default. Call on every exit path."""
+    _restore_bg()

@@ -317,7 +317,7 @@ not part of the standard flight config. Left at whatever they are.
 | Step | Action |
 |---|---|
 | 9.1 | Print final config summary with serial number, revision, firmware, all field values. Highlight volatile values. |
-| 9.2 | Print **`// MERCURY IS GO`** in Signal Pink (`#e64097`) or nearest terminal equivalent. Large, distinctive, unmissable. |
+| 9.2 | Print **`// MERCURY IS GO`** in C6 Accent (`#e64097`) or nearest terminal equivalent. Large, distinctive, unmissable. |
 | 9.3 | Print: "To arm for flight:" |
 | | "  1. Disconnect USB" |
 | | "  2. Install Mercury in rocket (USB port down)" |
@@ -390,19 +390,25 @@ The Mercury serial number (MAC address) must be printed:
 
 ## UI / Terminal Style
 
-Adapted from C6 style guide for terminal output (truecolor where supported, fallback to 256-color):
+Adapted from C6 style guide for terminal output. Uses 24-bit truecolor (explicit RGB)
+where supported so terminal themes and transparency cannot remap colours. Falls back to
+256-color / basic ANSI on older terminals.
 
-| Element | Treatment |
-|---|---|
-| Section headers | `// SECTION NAME` prefix in Signal Pink |
-| Success | Green (standard terminal green) |
-| Warnings | Yellow/amber |
-| Errors | Red, bold |
-| `MERCURY IS GO` | Signal Pink, bold, large/prominent |
-| Field values | White/cloud for current, Signal Pink for mismatches |
-| Prompts | Signal Pink `//` prefix |
-| Serial number | Always bold white |
-| Body text | Default terminal color (light) |
+On startup, the tool forces the terminal background to C6 Void (`#0a0a0b`) via OSC 11,
+ensuring opaque dark surface regardless of user transparency settings. Background is
+restored to the terminal default (OSC 112) on every exit path including SIGINT.
+
+| Element | Treatment | Colour |
+|---|---|---|
+| Section headers | `// SECTION NAME` prefix, bold | C6 Accent `#e64097` |
+| Success | Green checkmark (✓) | `rgb(52, 211, 153)` / ANSI 32 fallback |
+| Warnings | Amber warning sign (⚠) | `rgb(251, 191, 36)` / ANSI 33 fallback |
+| Errors | Red cross (✗), bold | `rgb(248, 113, 113)` / ANSI 31 fallback |
+| `MERCURY IS GO` | Bold, prominent | C6 Accent `#e64097` |
+| Field values | White/cloud for current, red for mismatches | |
+| Prompts | `//` prefix | C6 Accent `#e64097` |
+| Serial number | Always bold | C6 White `#f5f5f7` / bold white fallback |
+| Body text | Default terminal colour (light) | |
 
 No emojis. Checkmarks (✓) and crosses (✗) for pass/fail. Clean, legible under sunlight on a laptop screen.
 
