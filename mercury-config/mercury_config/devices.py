@@ -17,11 +17,12 @@ _DEVICES_PATH = Path.home() / ".mercury-config" / "devices.json"
 MANAGED_PASSWORD = "05c69008"
 
 
-class DeviceRecord(TypedDict):
+class DeviceRecord(TypedDict, total=False):
     ssid: str
     revision: int
     firmware: str
     last_configured: str
+    airframe: str
 
 
 def load() -> dict[str, DeviceRecord]:
