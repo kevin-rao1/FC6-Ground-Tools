@@ -1,0 +1,18 @@
+# Reverse engineering workspace — do NOT commit
+RE_Repo_Copy_ADD_TO_GITIGNORE/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# Tool state
+.mercury-config/
