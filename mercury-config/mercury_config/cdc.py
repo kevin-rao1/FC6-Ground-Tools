@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 import time
 
+import termios
+
 import serial
 from serial import SerialException
 
@@ -20,7 +22,7 @@ from mercury_config.devices import MANAGED_PASSWORD
 CDC_BAUD = 115200  # Irrelevant for USB CDC, but pyserial requires a value
 CDC_READ_TIMEOUT_S = 3
 CDC_FLUSH_WAIT_S = 0.2
-CDC_READY_TIMEOUT_S = 20  # Total time to poll for CDC readiness
+CDC_READY_TIMEOUT_S = 30  # Total time to poll for CDC readiness
 CDC_READY_POLL_S = 2.0  # Delay between readiness attempts
 CDC_SEND_RETRIES = 3
 CDC_RETRY_DELAY_S = 1.0
@@ -106,7 +108,7 @@ def send_command(ser: serial.Serial, command: str) -> str:
             response = response_bytes.decode("ascii", errors="replace").strip()
             session_log.log("cdc", f"RX: {response!r}")
             return response
-        except (SerialException, OSError) as e:
+        except (SerialException, OSError, termios.error) as e:
             last_err = e
             session_log.log(
                 "cdc",
@@ -236,7 +238,7 @@ def adopt_device(ser: serial.Serial) -> None:
     try:
         response = send_command(ser, command)
         session_log.log("cdc", f"Adopt response: {response!r}")
-    except (CDCError, SerialException, OSError) as e:
+    except (CDCError, SerialException, OSError, termios.error) as e:
         # Device may reboot before we read the response — that's OK
         session_log.log("cdc", f"Adopt send error (expected on reboot): {e}")
     finally:
