@@ -9,23 +9,61 @@ from __future__ import annotations
 
 from mercury_config import session_log
 
-# Open-Meteo: free, no API key, returns surface pressure.
-# We use a central UK location as a reasonable default.
-# Surface pressure at station level != sea-level pressure (QNH),
-# but Open-Meteo's "current_weather" includes pressure_msl.
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-OPEN_METEO_PARAMS = {
-    "latitude": "52.0",    # Approx central UK
-    "longitude": "-1.0",
-    "current": "pressure_msl",
-    "forecast_days": "1",
-}
-
 FETCH_TIMEOUT_S = 5
 
+LAUNCH_SITES: dict[str, dict[str, float | str]] = {
+    "Cox's Field": {
+        "lat": 51.6695,
+        "lon": -1.3680,
+        "label": "C6 Aerospace",
+    },
+    "Chippenham": {
+        "lat": 51.4592,
+        "lon": -2.1306,
+        "label": "UKROC Regional",
+    },
+    "Farnborough": {
+        "lat": 51.2803,
+        "lon": -0.7779,
+        "label": "Internationals",
+    },
+}
 
-def fetch_qnh() -> float | None:
-    """Fetch current sea-level pressure (QNH) from Open-Meteo.
+
+def get_site_names() -> list[str]:
+    """Return display strings for ui.prompt_choice().
+
+    Format: "Site Name (Label)" e.g. "Cox's Field (C6 Aerospace)"
+    """
+    return [
+        f"{name} ({site['label']})"
+        for name, site in LAUNCH_SITES.items()
+    ]
+
+
+def get_site_coords(site_name: str) -> tuple[float, float]:
+    """Return (lat, lon) for a site name.
+
+    Raises KeyError if site_name is not in LAUNCH_SITES.
+    """
+    site = LAUNCH_SITES[site_name]
+    return float(site["lat"]), float(site["lon"])
+
+
+def parse_site_name(display_string: str) -> str:
+    """Extract the site name from a display string.
+
+    "Cox's Field (C6 Aerospace)" -> "Cox's Field"
+    """
+    return display_string.split(" (")[0]
+
+
+def fetch_qnh(site_name: str) -> float | None:
+    """Fetch current sea-level pressure (QNH) from Open-Meteo for a site.
+
+    Args:
+        site_name: Key into LAUNCH_SITES (e.g. "Cox's Field").
 
     Returns:
         Pressure in hPa, or None on any failure.
@@ -33,10 +71,19 @@ def fetch_qnh() -> float | None:
     try:
         import requests
 
-        session_log.log("weather", "Fetching QNH from Open-Meteo...")
+        lat, lon = get_site_coords(site_name)
+
+        params = {
+            "latitude": str(lat),
+            "longitude": str(lon),
+            "current": "pressure_msl",
+            "forecast_days": "1",
+        }
+
+        session_log.log("weather", f"Fetching QNH from Open-Meteo for {site_name}...")
         response = requests.get(
             OPEN_METEO_URL,
-            params=OPEN_METEO_PARAMS,
+            params=params,
             timeout=FETCH_TIMEOUT_S,
         )
         response.raise_for_status()
@@ -45,7 +92,7 @@ def fetch_qnh() -> float | None:
         pressure = data.get("current", {}).get("pressure_msl")
         if pressure is not None:
             qnh = float(pressure)
-            session_log.log("weather", f"QNH from API: {qnh} hPa")
+            session_log.log("weather", f"QNH from API ({site_name}): {qnh} hPa")
             return qnh
 
         session_log.log("weather", f"No pressure_msl in response: {data}")
