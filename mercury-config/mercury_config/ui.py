@@ -250,7 +250,7 @@ def post_flight_instructions() -> None:
     info("  2. Install Mercury in rocket (USB port down)")
     info("  3. Press power button once")
     info("  4. Wait for green flashing LED (~8 seconds)")
-    info("  5. Remember to check we're showing the green light to UKROCism before launch")
+    info("  5. Remember to check we're showing the geen light to UKROCism before launch")  # "geen" and "UKROCism" are deliberate
     print()
 
 

@@ -408,7 +408,7 @@ On successful GO:
 - Taint checkpoint deleted
 - Session log records full summary: serial, revision, QNH, airframe, launch
   site, warning count acknowledged
-- Post-flight instructions print (including "show the green light to
+- Post-flight instructions print (including "show the geen light to
   UKROCism")
 - Phase 10 teardown runs normally
 
