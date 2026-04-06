@@ -204,12 +204,16 @@ def print_config_report(
 def prompt_qnh(
     current_value: str,
     prefetched_qnh: float | None,
+    launch_site: str,
 ) -> str:
     """Phase 7: Prompt user for QNH (sea-level pressure).
+
+    No empty input accepted. Operator must type a numeric value every time.
 
     Args:
         current_value: Current sealevel value from device.
         prefetched_qnh: Pre-fetched QNH from weather API, or None.
+        launch_site: Name of selected launch site for display.
 
     Returns:
         The QNH value string to write.
@@ -218,24 +222,21 @@ def prompt_qnh(
 
     ui.info(f"Current device value: {current_value} hPa")
     if prefetched_qnh is not None:
-        ui.info(f"Weather API forecast:  {prefetched_qnh:.1f} hPa")
+        ui.info(f"Weather API forecast ({launch_site}): {prefetched_qnh:.1f} hPa")
 
     while True:
-        raw = ui.prompt(
-            f"QNH / sea-level pressure (hPa) [Enter = keep {current_value}]: "
-        )
+        raw = ui.prompt("QNH / sea-level pressure (hPa): ")
 
-        # Empty = keep current
+        # No empty input — operator must type a number
         if not raw:
-            ui.info(f"Keeping: {current_value} hPa")
-            session_log.log("config", f"QNH kept at {current_value}")
-            return current_value
+            ui.warn("Enter a numeric QNH value. No shortcuts.")
+            continue
 
-        # Validate
+        # Validate numeric
         try:
             qnh = float(raw)
         except ValueError:
-            ui.warn("Enter a number (e.g. 1013.25)")
+            ui.warn("Enter a numeric QNH value.")
             continue
 
         # Range check
@@ -244,25 +245,16 @@ def prompt_qnh(
             if not ui.prompt_yn("Are you sure?", default=False):
                 continue
 
-        # Compare with prefetched
+        # Compare with prefetched — warning only, no choice offered
         if prefetched_qnh is not None:
             delta = abs(qnh - prefetched_qnh)
             if delta > QNH_WARN_DELTA:
-                ui.warn(
-                    f"Your value ({qnh:.1f}) differs from forecast "
-                    f"({prefetched_qnh:.1f}) by {delta:.1f} hPa."
+                from mercury_config import warnings
+                warnings.register(
+                    "qnh_delta",
+                    f"Entered QNH ({qnh:.1f}) differs from {launch_site} "
+                    f"forecast ({prefetched_qnh:.1f}) by {delta:.1f} hPa.",
                 )
-                choice = ui.prompt("Which do you want to use? [u]ser / [f]orecast: ")
-                if choice.lower().startswith("f"):
-                    # Validate forecast is in range (should always be, but defence in depth)
-                    if QNH_MIN <= prefetched_qnh <= QNH_MAX:
-                        qnh = prefetched_qnh
-                        ui.info(f"Using forecast: {qnh:.1f} hPa")
-                    else:
-                        ui.warn(
-                            f"Forecast value ({prefetched_qnh:.1f}) is outside "
-                            f"valid range. Keeping your input."
-                        )
 
         qnh_str = f"{qnh:.2f}"
         session_log.log("config", f"QNH set to {qnh_str}")

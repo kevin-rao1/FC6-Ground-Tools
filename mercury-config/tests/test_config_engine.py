@@ -7,12 +7,14 @@ silent bug could misconfigure flight hardware.
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch, call
 
 import pytest
 
 # Ensure the package is importable from the repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from mercury_config import config_engine
 from mercury_config.config_engine import (
     GoldenConfig,
     build_write_payload,
@@ -263,3 +265,57 @@ class TestDiffConfig:
         assert mismatches[0].name == "uart"
         assert mismatches[0].actual == "0"
         assert mismatches[0].expected == "1"
+
+
+class TestPromptQnhHardened:
+    """QNH prompt must reject empty input and require explicit numeric entry."""
+
+    @patch("mercury_config.config_engine.ui")
+    def test_rejects_empty_input(self, mock_ui) -> None:
+        """Enter-to-keep must NOT be accepted."""
+        mock_ui.prompt.side_effect = ["", "1013.25"]
+        mock_ui.warn = lambda msg: None
+        mock_ui.info = lambda msg: None
+        mock_ui.success = lambda msg: None
+        mock_ui.section = lambda msg: None
+
+        with patch("mercury_config.config_engine.session_log"):
+            result = config_engine.prompt_qnh(
+                current_value="1010.00",
+                prefetched_qnh=None,
+                launch_site="Cox's Field",
+            )
+        assert result == "1013.25"
+        assert mock_ui.prompt.call_count == 2
+
+    @patch("mercury_config.config_engine.ui")
+    def test_accepts_valid_numeric(self, mock_ui) -> None:
+        mock_ui.prompt.return_value = "1025.50"
+        mock_ui.info = lambda msg: None
+        mock_ui.success = lambda msg: None
+        mock_ui.section = lambda msg: None
+
+        with patch("mercury_config.config_engine.session_log"):
+            result = config_engine.prompt_qnh(
+                current_value="1013.25",
+                prefetched_qnh=None,
+                launch_site="Cox's Field",
+            )
+        assert result == "1025.50"
+
+    @patch("mercury_config.config_engine.ui")
+    def test_rejects_non_numeric(self, mock_ui) -> None:
+        mock_ui.prompt.side_effect = ["abc", "1013.25"]
+        mock_ui.warn = lambda msg: None
+        mock_ui.info = lambda msg: None
+        mock_ui.success = lambda msg: None
+        mock_ui.section = lambda msg: None
+
+        with patch("mercury_config.config_engine.session_log"):
+            result = config_engine.prompt_qnh(
+                current_value="1010.00",
+                prefetched_qnh=None,
+                launch_site="Cox's Field",
+            )
+        assert result == "1013.25"
+        assert mock_ui.prompt.call_count == 2
