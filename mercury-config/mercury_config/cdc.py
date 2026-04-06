@@ -19,6 +19,9 @@ from mercury_config.devices import MANAGED_PASSWORD
 CDC_BAUD = 115200  # Irrelevant for USB CDC, but pyserial requires a value
 CDC_READ_TIMEOUT_S = 3
 CDC_FLUSH_WAIT_S = 0.2
+CDC_BOOT_SETTLE_S = 2.0  # Wait after port open for firmware command loop
+CDC_SEND_RETRIES = 3
+CDC_RETRY_DELAY_S = 1.0
 
 
 class CDCError(Exception):
@@ -72,26 +75,47 @@ def open_port(port_path: str) -> serial.Serial:
 def send_command(ser: serial.Serial, command: str) -> str:
     """Send a command over CDC and read the response.
 
+    Retries up to CDC_SEND_RETRIES times on serial errors (e.g. phantom
+    readiness during boot) before raising.
+
     Args:
         ser: Open serial port.
         command: Command string (e.g. "ver&").
 
     Returns:
         Raw response string, stripped.
+
+    Raises:
+        CDCError: If all retries exhausted due to serial failure.
     """
-    # Flush any stale data
-    ser.reset_input_buffer()
-    time.sleep(CDC_FLUSH_WAIT_S)
-    ser.reset_input_buffer()
+    last_err: Exception | None = None
+    for attempt in range(CDC_SEND_RETRIES):
+        try:
+            # Flush any stale data
+            ser.reset_input_buffer()
+            time.sleep(CDC_FLUSH_WAIT_S)
+            ser.reset_input_buffer()
 
-    session_log.log("cdc", f"TX: {command!r}")
-    ser.write(command.encode("ascii"))
+            session_log.log("cdc", f"TX (attempt {attempt + 1}): {command!r}")
+            ser.write(command.encode("ascii"))
 
-    # Read response (may take up to CDC_READ_TIMEOUT_S)
-    response_bytes = ser.read(1024)
-    response = response_bytes.decode("ascii", errors="replace").strip()
-    session_log.log("cdc", f"RX: {response!r}")
-    return response
+            # Read response (may take up to CDC_READ_TIMEOUT_S)
+            response_bytes = ser.read(1024)
+            response = response_bytes.decode("ascii", errors="replace").strip()
+            session_log.log("cdc", f"RX: {response!r}")
+            return response
+        except SerialException as e:
+            last_err = e
+            session_log.log(
+                "cdc",
+                f"Serial error on attempt {attempt + 1}/{CDC_SEND_RETRIES}: {e}",
+            )
+            if attempt < CDC_SEND_RETRIES - 1:
+                time.sleep(CDC_RETRY_DELAY_S)
+
+    raise CDCError(
+        f"Serial communication failed after {CDC_SEND_RETRIES} attempts: {last_err}"
+    )
 
 
 def query_firmware_version(ser: serial.Serial) -> str:
@@ -221,6 +245,12 @@ def identify_device(
     ui.section("DEVICE IDENTIFICATION")
 
     ser = open_port(port_path)
+
+    # Wait for firmware command loop to initialise. USB CDC enumerates
+    # before the application layer is ready — without this, reads hit
+    # phantom readiness (select() fires, read returns 0 bytes).
+    ui.info("Waiting for firmware to initialise...")
+    time.sleep(CDC_BOOT_SETTLE_S)
 
     # Try to catch boot banner first (if device just powered on)
     boot_serial = try_capture_boot_serial(ser)
