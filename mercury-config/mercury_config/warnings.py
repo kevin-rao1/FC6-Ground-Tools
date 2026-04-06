@@ -12,6 +12,8 @@ from __future__ import annotations
 from mercury_config import session_log
 from mercury_config import ui
 
+_MAX_WARNINGS = 64
+
 _warnings: list[tuple[str, str]] = []
 
 
@@ -21,6 +23,9 @@ def register(category: str, message: str) -> None:
     Immediately prints via ui.warn() and logs to session log.
     Stored for replay at Phase 9 Flight Readiness Review.
     """
+    if len(_warnings) >= _MAX_WARNINGS:
+        session_log.log("warning", f"Warning overflow — limit {_MAX_WARNINGS} reached, not registering: [{category}] {message}")
+        return
     ui.warn(message)
     session_log.log("warning", f"[{category}] {message}")
     _warnings.append((category, message))
@@ -51,6 +56,15 @@ def serialise() -> list[dict[str, str]]:
 
 def deserialise(data: list[dict[str, str]]) -> None:
     """Load warnings from checkpoint data. Does NOT print or log —
-    these are historical warnings from a previous crashed session."""
-    for entry in data:
-        _warnings.append((entry["category"], entry["message"]))
+    these are historical warnings from a previous crashed session.
+
+    Replaces any existing warnings. Atomic: either all entries load
+    or none do. Raises ValueError on malformed data.
+    """
+    restored: list[tuple[str, str]] = []
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict) or "category" not in entry or "message" not in entry:
+            raise ValueError(f"Malformed warning at index {i}: {entry!r}")
+        restored.append((entry["category"], entry["message"]))
+    _warnings.clear()
+    _warnings.extend(restored)

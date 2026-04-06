@@ -8,8 +8,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from mercury_config import warnings
@@ -40,6 +38,14 @@ class TestRegister:
              patch("mercury_config.warnings.session_log") as mock_log:
             warnings.register("cat", "something bad")
         mock_log.log.assert_called_once_with("warning", "[cat] something bad")
+
+    def test_get_all_returns_copy(self) -> None:
+        with patch("mercury_config.warnings.ui"), \
+             patch("mercury_config.warnings.session_log"):
+            warnings.register("a", "first")
+        result = warnings.get_all()
+        result.append(("injected", "should not appear"))
+        assert warnings.count() == 1
 
     def test_multiple_warnings_accumulate(self) -> None:
         with patch("mercury_config.warnings.ui"), \
@@ -97,3 +103,27 @@ class TestSerialise:
     def test_deserialise_empty(self) -> None:
         warnings.deserialise([])
         assert warnings.count() == 0
+
+    def test_deserialise_replaces_existing(self) -> None:
+        """deserialise() must clear existing warnings, not append."""
+        with patch("mercury_config.warnings.ui"), \
+             patch("mercury_config.warnings.session_log"):
+            warnings.register("old", "should be replaced")
+        warnings.deserialise([{"category": "new", "message": "fresh"}])
+        assert warnings.count() == 1
+        assert warnings.get_all()[0] == ("new", "fresh")
+
+    def test_deserialise_rejects_malformed(self) -> None:
+        """Malformed data must not partially populate warnings."""
+        with patch("mercury_config.warnings.ui"), \
+             patch("mercury_config.warnings.session_log"):
+            warnings.register("existing", "should survive")
+        import pytest
+        with pytest.raises(ValueError, match="Malformed warning"):
+            warnings.deserialise([
+                {"category": "ok", "message": "fine"},
+                {"bad_key": "no category field"},
+            ])
+        # Atomic: validation failed so _warnings is untouched
+        assert warnings.count() == 1
+        assert warnings.get_all()[0] == ("existing", "should survive")
