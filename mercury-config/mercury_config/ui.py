@@ -312,5 +312,9 @@ def post_flight_instructions() -> None:
 
 
 def teardown() -> None:
-    """Restore terminal background to its default. Call on every exit path."""
+    """Restore terminal to its default state. Call on every exit path."""
+    if sys.stdout.isatty():
+        # SGR 0 — clear any leftover foreground colour / bold
+        sys.stdout.write("\033[0m")
+        sys.stdout.flush()
     _restore_bg()

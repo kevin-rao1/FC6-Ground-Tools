@@ -106,7 +106,7 @@ def send_command(ser: serial.Serial, command: str) -> str:
             response = response_bytes.decode("ascii", errors="replace").strip()
             session_log.log("cdc", f"RX: {response!r}")
             return response
-        except SerialException as e:
+        except (SerialException, OSError) as e:
             last_err = e
             session_log.log(
                 "cdc",
