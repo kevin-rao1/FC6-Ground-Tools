@@ -254,17 +254,22 @@ def identify_device(
 
 
 def ask_hardware_revision() -> int:
-    """Ask the user for the hardware revision (2 or 3).
+    """Ask the user to identify hardware revision by physical inspection.
 
-    CDC cannot determine this — it must be read from the PCB.
+    Uses the GP6/GP7 pad type as the distinguishing feature — this is
+    unambiguous and doesn't rely on reading a printed label.
 
     Returns:
         2 or 3
     """
-    while True:
-        raw = ui.prompt("Hardware revision printed on PCB back (2 or 3): ")
-        if raw in ("2", "3"):
-            revision = int(raw)
-            session_log.log("cdc", f"User reports revision: {revision}")
-            return revision
-        ui.warn("Enter 2 (BMP390) or 3 (BMP581).")
+    ui.info("Identify the hardware revision by inspecting GP6 and GP7:")
+    choice = ui.prompt_choice(
+        "Are GP6 and GP7 surface-mount pads or through-holes?",
+        [
+            "Surface-mount pads (Rev.2 \u2014 BMP390)",
+            "Through-holes (Rev.3 \u2014 BMP581)",
+        ],
+    )
+    revision = 2 if "Surface-mount" in choice else 3
+    session_log.log("cdc", f"User identifies revision: {revision}")
+    return revision
