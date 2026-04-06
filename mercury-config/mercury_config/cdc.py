@@ -19,7 +19,7 @@ from mercury_config.devices import MANAGED_PASSWORD
 CDC_BAUD = 115200  # Irrelevant for USB CDC, but pyserial requires a value
 CDC_READ_TIMEOUT_S = 3
 CDC_FLUSH_WAIT_S = 0.2
-CDC_BOOT_SETTLE_S = 2.0  # Wait after port open for firmware command loop
+CDC_BOOT_SETTLE_S = 5.0  # Wait after port open for firmware command loop
 CDC_SEND_RETRIES = 3
 CDC_RETRY_DELAY_S = 1.0
 
@@ -154,6 +154,10 @@ def query_firmware_version(ser: serial.Serial) -> str:
     )
 
 
+BOOT_BANNER_READ_S = 2.0  # Max time to spend reading boot banner
+BOOT_BANNER_MAX_BYTES = 4096  # Cap buffer — banner is ~200 B
+
+
 def try_capture_boot_serial(ser: serial.Serial) -> str | None:
     """Attempt to read the Mercury boot banner for serial/MAC.
 
@@ -163,15 +167,22 @@ def try_capture_boot_serial(ser: serial.Serial) -> str | None:
     Returns:
         Serial string if captured, None otherwise.
     """
-    # Read whatever is in the buffer (may have boot banner from power-on)
+    # Use a short read timeout so we don't overshoot the time bound
+    saved_timeout = ser.timeout
+    ser.timeout = 0.25
+
     data = b""
     start = time.monotonic()
-    while time.monotonic() - start < 2.0:
+    while time.monotonic() - start < BOOT_BANNER_READ_S:
         chunk = ser.read(256)
         if chunk:
             data += chunk
+            if len(data) >= BOOT_BANNER_MAX_BYTES:
+                break
         else:
             break
+
+    ser.timeout = saved_timeout
 
     text = data.decode("ascii", errors="replace")
     if text:
