@@ -1,12 +1,16 @@
 # FC6 Ground Tools
 
-Ground support tooling for FC6 rocketry avionics. Linux (Arch) only.
+Ground support tooling for C6 Aerospace's S-IX rockets. Designed to be idiotproof and auditable, even when used at the launch site under pre-launch stress.
+Linux (Arch) only. 
 
 ## mercury-config
 
-CLI tool for configuring [Mercury V1](https://www.altimetercloud.com/) altimeters before flight. Designed to be used at the launch site under pre-launch stress.
+CLI tool for configuring [Mercury V1](https://www.altimetercloud.com/) altimeters before flight. 
 
-**What it does:**
+Mercury's own configuration interface (Altimeter Cloud / the embedded web UI) requires manual interaction per device. With 7 Mercurys, config drift between devices is a real risk. mercury-config automates the entire flow: discover, diff against a golden config, patch, verify.
+
+### What it does
+
 - Discovers Mercury on USB, identifies hardware revision and firmware
 - Connects to Mercury's WiFi AP, reads current config via its embedded web server
 - Diffs device config against a known-good golden config
@@ -14,9 +18,6 @@ CLI tool for configuring [Mercury V1](https://www.altimetercloud.com/) altimeter
 - Pushes corrected config and verifies the write-back
 - Restores your WiFi connection on exit
 - Logs every action for post-flight audit
-
-**What it doesn't do:**
-- Downlink. UKROC rules forbid it.
 
 ### Install (Arch)
 
@@ -36,8 +37,11 @@ pip install -e .
 ### Usage
 
 ```
-mercury-config              # full auto (uses nmcli for WiFi)
-mercury-config --manual-wifi  # connect to Mercury WiFi yourself
+# full auto (uses nmcli for WiFi)
+mercury-config
+
+# connect to Mercury WiFi yourself
+mercury-config --manual-wifi
 ```
 
 ### Dependencies
@@ -48,10 +52,10 @@ mercury-config --manual-wifi  # connect to Mercury WiFi yourself
 
 ### Hardware
 
-- Mercury V1 Rev2 (BMP390) or Rev3 (BMP581)
+- Mercury V1 Altimeter - Rev2 (BMP390) or Rev3 (BMP581)
 - Firmware >= 2.30
 - USB-C data cable (charge-only cables won't work)
 
-## License
+### License
 
 GPL-3.0-or-later
