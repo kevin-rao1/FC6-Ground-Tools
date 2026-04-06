@@ -1,6 +1,9 @@
 # Reverse engineering workspace — do NOT commit
 RE_Repo_Copy_ADD_TO_GITIGNORE/
 
+# RE devcontainer
+.devcontainer/
+
 # Python
 __pycache__/
 *.pyc
