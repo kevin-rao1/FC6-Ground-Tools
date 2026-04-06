@@ -259,6 +259,18 @@ def _scan_acm_devices() -> list[dict[str, str]]:
     return devices
 
 
+def find_mercury_port() -> str | None:
+    """Single-scan for a Mercury port path.
+
+    Unlike discover_device(), this does not poll, prompt, or raise —
+    just returns the first matching port or None.
+    """
+    devices = _scan_acm_devices()
+    if devices:
+        return devices[0]["port"]
+    return None
+
+
 def discover_device() -> dict[str, str]:
     """Phase 1: Discover a Mercury device on USB.
 

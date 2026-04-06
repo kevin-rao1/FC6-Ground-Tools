@@ -12,6 +12,7 @@ import time
 import serial
 from serial import SerialException
 
+from mercury_config import discovery
 from mercury_config import session_log
 from mercury_config import ui
 from mercury_config.devices import MANAGED_PASSWORD
@@ -255,13 +256,22 @@ def identify_device(
     """
     ui.section("DEVICE IDENTIFICATION")
 
-    ser = open_port(port_path)
-
-    # Wait for firmware command loop to initialise. USB CDC enumerates
-    # before the application layer is ready — without this, reads hit
-    # phantom readiness (select() fires, read returns 0 bytes).
+    # Wait for firmware to finish booting before opening the port.
+    # ESP32-C6 may re-enumerate USB during boot — opening early gives
+    # a file descriptor that goes stale when the device resets.
     ui.info("Waiting for firmware to initialise...")
     time.sleep(CDC_BOOT_SETTLE_S)
+
+    # Re-discover port — device may have re-enumerated during boot,
+    # moving from e.g. ttyACM0 to ttyACM1.
+    refreshed = discovery.find_mercury_port()
+    if refreshed:
+        if refreshed != port_path:
+            session_log.log("cdc", f"Port changed after settle: {port_path} -> {refreshed}")
+            ui.info(f"Device re-enumerated: {refreshed}")
+        port_path = refreshed
+
+    ser = open_port(port_path)
 
     # Try to catch boot banner first (if device just powered on)
     boot_serial = try_capture_boot_serial(ser)
