@@ -16,8 +16,8 @@ from mercury_config import http_config
 from mercury_config import session_log
 from mercury_config import ui
 
-# Golden config directory: sibling to the package
-GOLDEN_DIR = Path(__file__).resolve().parent.parent / "golden_configs"
+# Golden config directory: bundled inside the package
+GOLDEN_DIR = Path(__file__).resolve().parent / "golden_configs"
 
 QNH_MIN = 950.0
 QNH_MAX = 1070.0
