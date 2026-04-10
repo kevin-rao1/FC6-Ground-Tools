@@ -14,10 +14,10 @@ import termios
 import serial
 from serial import SerialException
 
-from mercury_config import discovery
-from mercury_config import session_log
-from mercury_config import ui
-from mercury_config.devices import MANAGED_PASSWORD
+from mc6 import discovery
+from mc6 import session_log
+from mc6 import ui
+from mc6.devices import MANAGED_PASSWORD
 
 CDC_BAUD = 115200  # Irrelevant for USB CDC, but pyserial requires a value
 CDC_READ_TIMEOUT_S = 3

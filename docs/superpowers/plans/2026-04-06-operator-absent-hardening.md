@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-06-operator-absent-hardening-design.md`
 
-**Test runner:** `cd mercury-config && python -m pytest -v`
+**Test runner:** `cd mc6 && python -m pytest -v`
 
 ---
 
@@ -18,14 +18,14 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `mercury_config/warnings.py` | **New** | Flight-safety warning registry: register, accumulate, serialise, replay |
-| `mercury_config/checkpoint.py` | **New** | Taint checkpoint: write/read/delete/scan `~/.mercury-config/sessions/` |
-| `mercury_config/weather.py` | Modify | Launch site coordinates, `fetch_qnh()` takes site parameter |
-| `mercury_config/devices.py` | Modify | Add `airframe` field to `DeviceRecord` |
-| `mercury_config/cdc.py` | Modify | Rewrite `ask_hardware_revision()` prompt to GP6/GP7 question |
-| `mercury_config/config_engine.py` | Modify | Harden `prompt_qnh()`, add `check_revision_crossmatch()` |
-| `mercury_config/ui.py` | Modify | Add `prompt_exact()`, `flight_readiness_summary()` |
-| `mercury_config/main.py` | Modify | Full flow restructure: taint check, launch site, Phase 8.5/8.6, Phase 9 review |
+| `mc6/warnings.py` | **New** | Flight-safety warning registry: register, accumulate, serialise, replay |
+| `mc6/checkpoint.py` | **New** | Taint checkpoint: write/read/delete/scan `~/.mc6/sessions/` |
+| `mc6/weather.py` | Modify | Launch site coordinates, `fetch_qnh()` takes site parameter |
+| `mc6/devices.py` | Modify | Add `airframe` field to `DeviceRecord` |
+| `mc6/cdc.py` | Modify | Rewrite `ask_hardware_revision()` prompt to GP6/GP7 question |
+| `mc6/config_engine.py` | Modify | Harden `prompt_qnh()`, add `check_revision_crossmatch()` |
+| `mc6/ui.py` | Modify | Add `prompt_exact()`, `flight_readiness_summary()` |
+| `mc6/main.py` | Modify | Full flow restructure: taint check, launch site, Phase 8.5/8.6, Phase 9 review |
 | `tests/test_warnings.py` | **New** | Warning registry tests |
 | `tests/test_checkpoint.py` | **New** | Taint checkpoint tests |
 | `tests/test_config_engine.py` | Modify | QNH hardening tests, revision cross-check tests |
@@ -36,8 +36,8 @@
 ### Task 1: Warning Registry (`warnings.py`)
 
 **Files:**
-- Create: `mercury-config/mercury_config/warnings.py`
-- Test: `mercury-config/tests/test_warnings.py`
+- Create: `mc6/mc6/warnings.py`
+- Test: `mc6/tests/test_warnings.py`
 
 This is the foundation — most subsequent tasks depend on it.
 
@@ -58,7 +58,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config import warnings
+from mc6 import warnings
 
 
 class TestRegister:
@@ -68,28 +68,28 @@ class TestRegister:
         warnings.clear()
 
     def test_register_stores_warning(self) -> None:
-        with patch("mercury_config.warnings.ui"), \
-             patch("mercury_config.warnings.session_log"):
+        with patch("mc6.warnings.ui"), \
+             patch("mc6.warnings.session_log"):
             warnings.register("test_cat", "test message")
         assert warnings.count() == 1
         stored = warnings.get_all()
         assert stored[0] == ("test_cat", "test message")
 
     def test_register_calls_ui_warn(self) -> None:
-        with patch("mercury_config.warnings.ui") as mock_ui, \
-             patch("mercury_config.warnings.session_log"):
+        with patch("mc6.warnings.ui") as mock_ui, \
+             patch("mc6.warnings.session_log"):
             warnings.register("cat", "something bad")
         mock_ui.warn.assert_called_once_with("something bad")
 
     def test_register_calls_session_log(self) -> None:
-        with patch("mercury_config.warnings.ui"), \
-             patch("mercury_config.warnings.session_log") as mock_log:
+        with patch("mc6.warnings.ui"), \
+             patch("mc6.warnings.session_log") as mock_log:
             warnings.register("cat", "something bad")
         mock_log.log.assert_called_once_with("warning", "[cat] something bad")
 
     def test_multiple_warnings_accumulate(self) -> None:
-        with patch("mercury_config.warnings.ui"), \
-             patch("mercury_config.warnings.session_log"):
+        with patch("mc6.warnings.ui"), \
+             patch("mc6.warnings.session_log"):
             warnings.register("a", "first")
             warnings.register("b", "second")
             warnings.register("c", "third")
@@ -102,8 +102,8 @@ class TestRegister:
 
 class TestClear:
     def test_clear_empties_registry(self) -> None:
-        with patch("mercury_config.warnings.ui"), \
-             patch("mercury_config.warnings.session_log"):
+        with patch("mc6.warnings.ui"), \
+             patch("mc6.warnings.session_log"):
             warnings.register("a", "first")
         assert warnings.count() == 1
         warnings.clear()
@@ -118,8 +118,8 @@ class TestSerialise:
         warnings.clear()
 
     def test_round_trip(self) -> None:
-        with patch("mercury_config.warnings.ui"), \
-             patch("mercury_config.warnings.session_log"):
+        with patch("mc6.warnings.ui"), \
+             patch("mc6.warnings.session_log"):
             warnings.register("rev2", "Rev.2 detected")
             warnings.register("qnh_delta", "QNH differs by 7 hPa")
 
@@ -144,8 +144,8 @@ class TestSerialise:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd mercury-config && python -m pytest tests/test_warnings.py -v`
-Expected: `ModuleNotFoundError: No module named 'mercury_config.warnings'`
+Run: `cd mc6 && python -m pytest tests/test_warnings.py -v`
+Expected: `ModuleNotFoundError: No module named 'mc6.warnings'`
 
 - [ ] **Step 3: Implement `warnings.py`**
 
@@ -161,8 +161,8 @@ All flight-safety warnings are findable with: grep warnings.register
 
 from __future__ import annotations
 
-from mercury_config import session_log
-from mercury_config import ui
+from mc6 import session_log
+from mc6 import ui
 
 _warnings: list[tuple[str, str]] = []
 
@@ -210,13 +210,13 @@ def deserialise(data: list[dict[str, str]]) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd mercury-config && python -m pytest tests/test_warnings.py -v`
+Run: `cd mc6 && python -m pytest tests/test_warnings.py -v`
 Expected: All 8 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mercury-config/mercury_config/warnings.py mercury-config/tests/test_warnings.py
+git add mc6/mc6/warnings.py mc6/tests/test_warnings.py
 git commit -m "feat: add flight-safety warning registry (warnings.py)
 
 New module accumulates warnings throughout a session and replays them
@@ -229,8 +229,8 @@ must be explicitly ACCEPTed before GO."
 ### Task 2: Taint Checkpoint (`checkpoint.py`)
 
 **Files:**
-- Create: `mercury-config/mercury_config/checkpoint.py`
-- Test: `mercury-config/tests/test_checkpoint.py`
+- Create: `mc6/mc6/checkpoint.py`
+- Test: `mc6/tests/test_checkpoint.py`
 
 Depends on: Task 1 (imports `warnings.serialise()`)
 
@@ -252,7 +252,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config import checkpoint
+from mc6 import checkpoint
 
 
 @pytest.fixture
@@ -389,15 +389,15 @@ class TestUpdate:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd mercury-config && python -m pytest tests/test_checkpoint.py -v`
-Expected: `ModuleNotFoundError: No module named 'mercury_config.checkpoint'`
+Run: `cd mc6 && python -m pytest tests/test_checkpoint.py -v`
+Expected: `ModuleNotFoundError: No module named 'mc6.checkpoint'`
 
 - [ ] **Step 3: Implement `checkpoint.py`**
 
 ```python
 """Taint checkpoint persistence for crash recovery.
 
-Writes session state to ~/.mercury-config/sessions/<serial>.json at each
+Writes session state to ~/.mc6/sessions/<serial>.json at each
 phase boundary. Deleted only on successful GO. A checkpoint left behind
 after a crash forces the operator to acknowledge the incomplete session
 and re-run from scratch.
@@ -410,9 +410,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mercury_config import session_log
+from mc6 import session_log
 
-_DEFAULT_SESSIONS_DIR = Path.home() / ".mercury-config" / "sessions"
+_DEFAULT_SESSIONS_DIR = Path.home() / ".mc6" / "sessions"
 _SESSIONS_DIR = _DEFAULT_SESSIONS_DIR
 
 
@@ -496,13 +496,13 @@ def scan_all() -> list[dict[str, Any]]:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd mercury-config && python -m pytest tests/test_checkpoint.py -v`
+Run: `cd mc6 && python -m pytest tests/test_checkpoint.py -v`
 Expected: All 7 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mercury-config/mercury_config/checkpoint.py mercury-config/tests/test_checkpoint.py
+git add mc6/mc6/checkpoint.py mc6/tests/test_checkpoint.py
 git commit -m "feat: add taint checkpoint for crash recovery (checkpoint.py)
 
 Persists session state to disk at phase boundaries. Deleted only on
@@ -515,8 +515,8 @@ re-run and warn the operator about potentially dirty device state."
 ### Task 3: Launch Site Selection & Weather Hardening (`weather.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/weather.py`
-- Test: `mercury-config/tests/test_weather.py`
+- Modify: `mc6/mc6/weather.py`
+- Test: `mc6/tests/test_weather.py`
 
 - [ ] **Step 1: Write weather tests**
 
@@ -530,7 +530,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config.weather import LAUNCH_SITES, get_site_names, get_site_coords
+from mc6.weather import LAUNCH_SITES, get_site_names, get_site_coords
 
 
 class TestLaunchSites:
@@ -566,12 +566,12 @@ class TestLaunchSites:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd mercury-config && python -m pytest tests/test_weather.py -v`
+Run: `cd mc6 && python -m pytest tests/test_weather.py -v`
 Expected: FAIL — `get_site_names` and `get_site_coords` don't exist yet
 
 - [ ] **Step 3: Rewrite `weather.py`**
 
-Replace the entire contents of `mercury-config/mercury_config/weather.py` with:
+Replace the entire contents of `mc6/mc6/weather.py` with:
 
 ```python
 """Best-effort QNH pre-fetch from Open-Meteo weather API.
@@ -583,7 +583,7 @@ overrides the value.
 
 from __future__ import annotations
 
-from mercury_config import session_log
+from mc6 import session_log
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 FETCH_TIMEOUT_S = 5
@@ -681,18 +681,18 @@ def fetch_qnh(site_name: str) -> float | None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd mercury-config && python -m pytest tests/test_weather.py -v`
+Run: `cd mc6 && python -m pytest tests/test_weather.py -v`
 Expected: All 6 tests PASS
 
 - [ ] **Step 5: Run full test suite to check nothing broke**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All existing tests still pass (weather module is only called from `main.py`, which has no tests)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add mercury-config/mercury_config/weather.py mercury-config/tests/test_weather.py
+git add mc6/mc6/weather.py mc6/tests/test_weather.py
 git commit -m "feat: add launch site selection to weather module
 
 Replace hardcoded central-UK coordinates with three launch sites:
@@ -705,13 +705,13 @@ name parameter for site-specific forecasts."
 ### Task 4: Device Record — Add Airframe Field (`devices.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/devices.py`
+- Modify: `mc6/mc6/devices.py`
 
 Minimal change — just add the optional field to the TypedDict.
 
 - [ ] **Step 1: Update `DeviceRecord` TypedDict**
 
-In `mercury-config/mercury_config/devices.py`, change the `DeviceRecord` class (lines 20-24) to:
+In `mc6/mc6/devices.py`, change the `DeviceRecord` class (lines 20-24) to:
 
 ```python
 class DeviceRecord(TypedDict, total=False):
@@ -726,13 +726,13 @@ Note: `total=False` makes all fields optional, which is needed because existing 
 
 - [ ] **Step 2: Run full test suite**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All tests pass (TypedDict change is structural, not behavioural)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mercury-config/mercury_config/devices.py
+git add mc6/mc6/devices.py
 git commit -m "feat: add airframe field to DeviceRecord
 
 Optional field for tracking which rocket a Mercury is assigned to.
@@ -744,11 +744,11 @@ Backwards-compatible with existing devices.json files."
 ### Task 5: Hardware Revision Prompt Rewrite (`cdc.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/cdc.py` (lines 256-271)
+- Modify: `mc6/mc6/cdc.py` (lines 256-271)
 
 - [ ] **Step 1: Rewrite `ask_hardware_revision()`**
 
-Replace lines 256-271 in `mercury-config/mercury_config/cdc.py` with:
+Replace lines 256-271 in `mc6/mc6/cdc.py` with:
 
 ```python
 def ask_hardware_revision() -> int:
@@ -775,13 +775,13 @@ def ask_hardware_revision() -> int:
 
 - [ ] **Step 2: Run full test suite**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All tests pass (this function is only called interactively from `main.py`)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mercury-config/mercury_config/cdc.py
+git add mc6/mc6/cdc.py
 git commit -m "feat: rewrite revision prompt to use GP6/GP7 pad inspection
 
 Replace 'type 2 or 3' prompt with unambiguous physical inspection
@@ -793,12 +793,12 @@ question about pad type. Surface-mount = Rev.2, through-holes = Rev.3."
 ### Task 6: QNH Hardening (`config_engine.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/config_engine.py` (lines 204-270)
-- Modify: `mercury-config/tests/test_config_engine.py`
+- Modify: `mc6/mc6/config_engine.py` (lines 204-270)
+- Modify: `mc6/tests/test_config_engine.py`
 
 - [ ] **Step 1: Write QNH hardening tests**
 
-Add to the end of `mercury-config/tests/test_config_engine.py`:
+Add to the end of `mc6/tests/test_config_engine.py`:
 
 ```python
 from unittest.mock import patch, call
@@ -807,7 +807,7 @@ from unittest.mock import patch, call
 class TestPromptQnhHardened:
     """QNH prompt must reject empty input and require explicit numeric entry."""
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_rejects_empty_input(self, mock_ui) -> None:
         """Enter-to-keep must NOT be accepted."""
         # First call returns empty, second returns valid number
@@ -817,7 +817,7 @@ class TestPromptQnhHardened:
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"):
+        with patch("mc6.config_engine.session_log"):
             result = config_engine.prompt_qnh(
                 current_value="1010.00",
                 prefetched_qnh=None,
@@ -827,15 +827,15 @@ class TestPromptQnhHardened:
         # Verify we were prompted twice (first empty was rejected)
         assert mock_ui.prompt.call_count == 2
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_accepts_valid_numeric(self, mock_ui) -> None:
         mock_ui.prompt.return_value = "1025.50"
         mock_ui.info = lambda msg: None
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"), \
-             patch("mercury_config.config_engine.warnings"):
+        with patch("mc6.config_engine.session_log"), \
+             patch("mc6.config_engine.warnings"):
             result = config_engine.prompt_qnh(
                 current_value="1013.25",
                 prefetched_qnh=None,
@@ -843,7 +843,7 @@ class TestPromptQnhHardened:
             )
         assert result == "1025.50"
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_rejects_non_numeric(self, mock_ui) -> None:
         mock_ui.prompt.side_effect = ["abc", "1013.25"]
         mock_ui.warn = lambda msg: None
@@ -851,8 +851,8 @@ class TestPromptQnhHardened:
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"), \
-             patch("mercury_config.config_engine.warnings"):
+        with patch("mc6.config_engine.session_log"), \
+             patch("mc6.config_engine.warnings"):
             result = config_engine.prompt_qnh(
                 current_value="1010.00",
                 prefetched_qnh=None,
@@ -864,12 +864,12 @@ class TestPromptQnhHardened:
 
 - [ ] **Step 2: Run new tests to verify they fail**
 
-Run: `cd mercury-config && python -m pytest tests/test_config_engine.py::TestPromptQnhHardened -v`
+Run: `cd mc6 && python -m pytest tests/test_config_engine.py::TestPromptQnhHardened -v`
 Expected: FAIL — `prompt_qnh()` doesn't accept `launch_site` parameter yet
 
 - [ ] **Step 3: Rewrite `prompt_qnh()` in `config_engine.py`**
 
-Replace lines 204-270 in `mercury-config/mercury_config/config_engine.py` with:
+Replace lines 204-270 in `mc6/mc6/config_engine.py` with:
 
 ```python
 def prompt_qnh(
@@ -920,7 +920,7 @@ def prompt_qnh(
         if prefetched_qnh is not None:
             delta = abs(qnh - prefetched_qnh)
             if delta > QNH_WARN_DELTA:
-                from mercury_config import warnings
+                from mc6 import warnings
                 warnings.register(
                     "qnh_delta",
                     f"Entered QNH ({qnh:.1f}) differs from {launch_site} "
@@ -935,13 +935,13 @@ def prompt_qnh(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd mercury-config && python -m pytest tests/test_config_engine.py -v`
+Run: `cd mc6 && python -m pytest tests/test_config_engine.py -v`
 Expected: All tests pass (old + new)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mercury-config/mercury_config/config_engine.py mercury-config/tests/test_config_engine.py
+git add mc6/mc6/config_engine.py mc6/tests/test_config_engine.py
 git commit -m "feat: harden QNH prompt — require explicit numeric entry
 
 Remove Enter-to-keep shortcut. Remove forecast selection shortcut.
@@ -954,35 +954,35 @@ goes through the warning registry for replay at GO gate."
 ### Task 7: Revision Cross-Check (`config_engine.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/config_engine.py`
-- Modify: `mercury-config/tests/test_config_engine.py`
+- Modify: `mc6/mc6/config_engine.py`
+- Modify: `mc6/tests/test_config_engine.py`
 
 - [ ] **Step 1: Write cross-check tests**
 
-Add to the end of `mercury-config/tests/test_config_engine.py`:
+Add to the end of `mc6/tests/test_config_engine.py`:
 
 ```python
-from mercury_config.config_engine import check_revision_crossmatch
+from mc6.config_engine import check_revision_crossmatch
 
 
 class TestRevisionCrossmatch:
     """Detect when device sample_speed contradicts stored revision."""
 
-    @patch("mercury_config.config_engine.warnings")
+    @patch("mc6.config_engine.warnings")
     def test_rev2_with_correct_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {"sample_speed": "50"}
         check_revision_crossmatch(golden, device_settings)
         mock_warnings.register.assert_not_called()
 
-    @patch("mercury_config.config_engine.warnings")
+    @patch("mc6.config_engine.warnings")
     def test_rev3_with_correct_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(3)
         device_settings = {"sample_speed": "100"}
         check_revision_crossmatch(golden, device_settings)
         mock_warnings.register.assert_not_called()
 
-    @patch("mercury_config.config_engine.warnings")
+    @patch("mc6.config_engine.warnings")
     def test_rev2_with_wrong_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {"sample_speed": "100"}
@@ -991,7 +991,7 @@ class TestRevisionCrossmatch:
         call_args = mock_warnings.register.call_args
         assert call_args[0][0] == "revision_mismatch"
 
-    @patch("mercury_config.config_engine.warnings")
+    @patch("mc6.config_engine.warnings")
     def test_missing_sample_speed_no_crash(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {}
@@ -1002,12 +1002,12 @@ class TestRevisionCrossmatch:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd mercury-config && python -m pytest tests/test_config_engine.py::TestRevisionCrossmatch -v`
+Run: `cd mc6 && python -m pytest tests/test_config_engine.py::TestRevisionCrossmatch -v`
 Expected: FAIL — `check_revision_crossmatch` doesn't exist
 
 - [ ] **Step 3: Implement `check_revision_crossmatch()`**
 
-Add after the `values_equal()` function (after line 152) in `mercury-config/mercury_config/config_engine.py`:
+Add after the `values_equal()` function (after line 152) in `mc6/mc6/config_engine.py`:
 
 ```python
 def check_revision_crossmatch(
@@ -1031,7 +1031,7 @@ def check_revision_crossmatch(
         return  # Field not present — can't cross-check
 
     if not values_equal(actual, expected):
-        from mercury_config import warnings
+        from mc6 import warnings
         warnings.register(
             "revision_mismatch",
             f"Device sample_speed is {actual} but Rev.{golden.revision} "
@@ -1042,13 +1042,13 @@ def check_revision_crossmatch(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd mercury-config && python -m pytest tests/test_config_engine.py -v`
+Run: `cd mc6 && python -m pytest tests/test_config_engine.py -v`
 Expected: All tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mercury-config/mercury_config/config_engine.py mercury-config/tests/test_config_engine.py
+git add mc6/mc6/config_engine.py mc6/tests/test_config_engine.py
 git commit -m "feat: add revision crossmatch check
 
 Detects when device sample_speed contradicts the loaded golden config's
@@ -1060,13 +1060,13 @@ expected value, indicating a possible revision mismatch."
 ### Task 8: UI Additions (`ui.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/ui.py`
+- Modify: `mc6/mc6/ui.py`
 
 No tests for UI functions (they only print — testing would just assert on escape codes). The Phase 9 integration test in Task 10 covers their usage.
 
 - [ ] **Step 1: Add `prompt_exact()` function**
 
-Add after the `prompt_choice()` function (after line 234) in `mercury-config/mercury_config/ui.py`:
+Add after the `prompt_choice()` function (after line 234) in `mc6/mc6/ui.py`:
 
 ```python
 def prompt_exact(msg: str, expected: str) -> None:
@@ -1083,7 +1083,7 @@ def prompt_exact(msg: str, expected: str) -> None:
 
 - [ ] **Step 2: Add `flight_readiness_summary()` function**
 
-Add after `prompt_exact()` in `mercury-config/mercury_config/ui.py`:
+Add after `prompt_exact()` in `mc6/mc6/ui.py`:
 
 ```python
 def flight_readiness_summary(
@@ -1105,7 +1105,7 @@ def flight_readiness_summary(
 
 - [ ] **Step 3: Add `warning_replay()` function**
 
-Add after `flight_readiness_summary()` in `mercury-config/mercury_config/ui.py`:
+Add after `flight_readiness_summary()` in `mc6/mc6/ui.py`:
 
 ```python
 def warning_replay(warnings_list: list[tuple[str, str]]) -> None:
@@ -1128,13 +1128,13 @@ def warning_replay(warnings_list: list[tuple[str, str]]) -> None:
 
 - [ ] **Step 4: Run full test suite**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All tests pass
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mercury-config/mercury_config/ui.py
+git add mc6/mc6/ui.py
 git commit -m "feat: add prompt_exact, flight_readiness_summary, warning_replay
 
 New UI functions for the Phase 9 Flight Readiness Review gate.
@@ -1147,17 +1147,17 @@ warning_replay() iterates warnings with per-warning acknowledgement."
 ### Task 9: Main Flow Restructure (`main.py`)
 
 **Files:**
-- Modify: `mercury-config/mercury_config/main.py`
+- Modify: `mc6/mc6/main.py`
 
 This is the largest change. The flow is restructured to match the spec. Each sub-step below is a discrete, auditable change within `main.py`.
 
 - [ ] **Step 1: Add new imports at top of `main.py`**
 
-Add to the import block (after line 23 in `mercury-config/mercury_config/main.py`):
+Add to the import block (after line 23 in `mc6/mc6/main.py`):
 
 ```python
-from mercury_config import checkpoint
-from mercury_config import warnings
+from mc6 import checkpoint
+from mc6 import warnings
 ```
 
 Note: `weather` is already imported on line 22. No alias needed — the new functions (`get_site_names`, `parse_site_name`, updated `fetch_qnh`) are called as `weather.func()`.
@@ -1521,13 +1521,13 @@ Replace everything from `# --- Phase 9: Flight Readiness ---` (line 396) to the 
 
 - [ ] **Step 13: Run full test suite**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All tests pass
 
 - [ ] **Step 14: Commit**
 
 ```bash
-git add mercury-config/mercury_config/main.py
+git add mc6/mc6/main.py
 git commit -m "feat: restructure flow for operator-absent hardening
 
 - Phase 0: taint check + launch site selection
@@ -1550,12 +1550,12 @@ git commit -m "feat: restructure flow for operator-absent hardening
 
 - [ ] **Step 1: Run full test suite one final time**
 
-Run: `cd mercury-config && python -m pytest -v`
+Run: `cd mc6 && python -m pytest -v`
 Expected: All tests pass (existing + new)
 
 - [ ] **Step 2: Verify grepability of warning registrations**
 
-Run: `cd mercury-config && grep -rn "warnings.register" mercury_config/`
+Run: `cd mc6 && grep -rn "warnings.register" mc6/`
 Expected: Should show all registration call sites:
 - `warnings.py` (the register function itself)
 - `main.py` (rev2, tainted_device, browser warnings)
@@ -1565,12 +1565,12 @@ Verify every one makes sense and none are missing.
 
 - [ ] **Step 3: Verify no stale `weather.fetch_qnh()` calls without site parameter**
 
-Run: `cd mercury-config && grep -rn "fetch_qnh" mercury_config/`
+Run: `cd mc6 && grep -rn "fetch_qnh" mc6/`
 Expected: Only `weather.py` (definition) and `main.py` (with site parameter). No bare `fetch_qnh()` calls.
 
 - [ ] **Step 4: Verify no remaining `Enter = keep` patterns**
 
-Run: `cd mercury-config && grep -rn "Enter = keep\|Enter-to-keep" mercury_config/`
+Run: `cd mc6 && grep -rn "Enter = keep\|Enter-to-keep" mc6/`
 Expected: No matches.
 
 - [ ] **Step 5: Commit integration verification**

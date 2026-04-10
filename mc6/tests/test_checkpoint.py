@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config import checkpoint
+from mc6 import checkpoint
 
 
 @pytest.fixture

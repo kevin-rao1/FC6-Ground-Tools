@@ -1,4 +1,4 @@
-"""Managed device list — JSON persistence at ~/.mercury-config/devices.json.
+"""Managed device list — JSON persistence at ~/.mc6/devices.json.
 
 Tracks known Mercurys by MAC address. Stores SSID, revision, firmware, and
 last-configured timestamp so we can identify devices on subsequent runs.
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import TypedDict
 
-_DEVICES_PATH = Path.home() / ".mercury-config" / "devices.json"
+_DEVICES_PATH = Path.home() / ".mc6" / "devices.json"
 
 # The managed password for all FC6 Mercurys
 MANAGED_PASSWORD = "05c69008"

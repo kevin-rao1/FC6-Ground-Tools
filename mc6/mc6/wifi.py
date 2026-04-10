@@ -9,9 +9,9 @@ from __future__ import annotations
 import subprocess
 import time
 
-from mercury_config import session_log
-from mercury_config import ui
-from mercury_config.devices import MANAGED_PASSWORD
+from mc6 import session_log
+from mc6 import ui
+from mc6.devices import MANAGED_PASSWORD
 
 NMCLI_TIMEOUT_S = 15
 WIFI_CONNECT_RETRIES = 2

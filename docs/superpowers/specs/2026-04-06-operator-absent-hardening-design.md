@@ -1,7 +1,7 @@
 # Mercury Config Tool — Operator-Absent Hardening
 
 **Date:** 2026-04-06
-**Scope:** mercury-config (FC6 Ground Tools)
+**Scope:** mc6 (FC6 Ground Tools)
 **Status:** Design — awaiting implementation plan
 
 ## Problem
@@ -108,7 +108,7 @@ through this function.
 
 ## 2. Taint Checkpoint
 
-### File location: `~/.mercury-config/sessions/<serial>.json`
+### File location: `~/.mc6/sessions/<serial>.json`
 
 ### Lifecycle
 
@@ -140,7 +140,7 @@ through this function.
 
 ### Startup behaviour (Phase 0)
 
-Before any other action, scan `~/.mercury-config/sessions/` for checkpoint
+Before any other action, scan `~/.mc6/sessions/` for checkpoint
 files. For each one found:
 
 - Display: `"Incomplete session for <serial> started at <timestamp>."`
@@ -429,7 +429,7 @@ On successful GO:
 ## New file: Taint checkpoint persistence
 
 Either a new `checkpoint.py` module or functions added to `session_log.py`.
-Handles write/read/delete of `~/.mercury-config/sessions/<serial>.json`.
+Handles write/read/delete of `~/.mc6/sessions/<serial>.json`.
 
 Recommend a separate `checkpoint.py` — single responsibility, and it needs
 to be called from `main.py` at phase boundaries independently of log writes.

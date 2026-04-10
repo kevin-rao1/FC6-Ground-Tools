@@ -14,8 +14,8 @@ import pytest
 # Ensure the package is importable from the repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config import config_engine
-from mercury_config.config_engine import (
+from mc6 import config_engine
+from mc6.config_engine import (
     GoldenConfig,
     build_write_payload,
     diff_config,
@@ -270,7 +270,7 @@ class TestDiffConfig:
 class TestPromptQnhHardened:
     """QNH prompt must reject empty input and require explicit numeric entry."""
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_rejects_empty_input(self, mock_ui) -> None:
         """Enter-to-keep must NOT be accepted."""
         mock_ui.prompt.side_effect = ["", "1013.25"]
@@ -279,7 +279,7 @@ class TestPromptQnhHardened:
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"):
+        with patch("mc6.config_engine.session_log"):
             result = config_engine.prompt_qnh(
                 current_value="1010.00",
                 prefetched_qnh=None,
@@ -288,14 +288,14 @@ class TestPromptQnhHardened:
         assert result == "1013.25"
         assert mock_ui.prompt.call_count == 2
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_accepts_valid_numeric(self, mock_ui) -> None:
         mock_ui.prompt.return_value = "1025.50"
         mock_ui.info = lambda msg: None
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"):
+        with patch("mc6.config_engine.session_log"):
             result = config_engine.prompt_qnh(
                 current_value="1013.25",
                 prefetched_qnh=None,
@@ -303,7 +303,7 @@ class TestPromptQnhHardened:
             )
         assert result == "1025.50"
 
-    @patch("mercury_config.config_engine.ui")
+    @patch("mc6.config_engine.ui")
     def test_rejects_non_numeric(self, mock_ui) -> None:
         mock_ui.prompt.side_effect = ["abc", "1013.25"]
         mock_ui.warn = lambda msg: None
@@ -311,7 +311,7 @@ class TestPromptQnhHardened:
         mock_ui.success = lambda msg: None
         mock_ui.section = lambda msg: None
 
-        with patch("mercury_config.config_engine.session_log"):
+        with patch("mc6.config_engine.session_log"):
             result = config_engine.prompt_qnh(
                 current_value="1010.00",
                 prefetched_qnh=None,
@@ -321,27 +321,27 @@ class TestPromptQnhHardened:
         assert mock_ui.prompt.call_count == 2
 
 
-from mercury_config.config_engine import check_revision_crossmatch
+from mc6.config_engine import check_revision_crossmatch
 
 
 class TestRevisionCrossmatch:
     """Detect when device sample_speed contradicts stored revision."""
 
-    @patch("mercury_config.warnings")
+    @patch("mc6.warnings")
     def test_rev2_with_correct_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {"sample_speed": "50"}
         check_revision_crossmatch(golden, device_settings)
         mock_warnings.register.assert_not_called()
 
-    @patch("mercury_config.warnings")
+    @patch("mc6.warnings")
     def test_rev3_with_correct_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(3)
         device_settings = {"sample_speed": "100"}
         check_revision_crossmatch(golden, device_settings)
         mock_warnings.register.assert_not_called()
 
-    @patch("mercury_config.warnings")
+    @patch("mc6.warnings")
     def test_rev2_with_wrong_sample_speed(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {"sample_speed": "100"}
@@ -350,7 +350,7 @@ class TestRevisionCrossmatch:
         call_args = mock_warnings.register.call_args
         assert call_args[0][0] == "revision_mismatch"
 
-    @patch("mercury_config.warnings")
+    @patch("mc6.warnings")
     def test_missing_sample_speed_no_crash(self, mock_warnings) -> None:
         golden = load_golden(2)
         device_settings = {}

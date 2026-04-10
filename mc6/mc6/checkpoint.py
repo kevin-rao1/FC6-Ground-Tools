@@ -1,6 +1,6 @@
 """Taint checkpoint persistence for crash recovery.
 
-Writes session state to ~/.mercury-config/sessions/<serial>.json at each
+Writes session state to ~/.mc6/sessions/<serial>.json at each
 phase boundary. Deleted only on successful GO. A checkpoint left behind
 after a crash forces the operator to acknowledge the incomplete session
 and re-run from scratch.
@@ -13,9 +13,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mercury_config import session_log
+from mc6 import session_log
 
-_DEFAULT_SESSIONS_DIR = Path.home() / ".mercury-config" / "sessions"
+_DEFAULT_SESSIONS_DIR = Path.home() / ".mc6" / "sessions"
 _SESSIONS_DIR = _DEFAULT_SESSIONS_DIR
 
 

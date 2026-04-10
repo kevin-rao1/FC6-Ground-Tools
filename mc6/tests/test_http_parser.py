@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mercury_config.http_config import _MercuryFormParser, _regex_parse_form
+from mc6.http_config import _MercuryFormParser, _regex_parse_form
 
 
 # Representative Mercury /settings/ HTML snippet with unclosed option tags

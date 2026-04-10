@@ -1,8 +1,9 @@
-# Mercury Launch Config Tool — Design Spec
+# MC6 — Mercury Launch Config Tool — Design Spec
 
 **Date:** 2026-04-06 (rev3 — golden config verified against FW 2.30 HTML dump)
-**Status:** Ready for implementation (pending /outputs/ page dump, Open Questions 3, 4, 9, 10)
-**Target:** Separate public repo, Python, portable to Arch laptop
+**Updated:** 2026-04-10 (renamed mercury-config → mc6, data directory migration)
+**Status:** Implemented. 85 tests passing. AUR package: `python-c6-mc6-git`.
+**Target:** FC6-Ground-Tools monorepo, Python, Arch laptop
 
 ---
 
@@ -123,7 +124,7 @@ Optional:
   running this tool against someone else's Mercury at a launch event and overwriting
   their config with ours. **Phase 2.10 (adopt) must require explicit user
   confirmation with the device serial number visible.**
-- Tool maintains a JSON file of known devices: `~/.mercury-config/devices.json`
+- Tool maintains a JSON file of known devices: `~/.mc6/devices.json`
   ```json
   {
     "b4:3a:45:99:0b:64": {
@@ -205,6 +206,30 @@ from the dump defaults, the override is annotated.
 
 Airbrake params, servo config, output/pyro config, action rules, I2C servo —
 not part of the standard flight config. Left at whatever they are.
+
+---
+
+## Data Directory Migration
+
+The tool was renamed from `mercury-config` to `mc6`. The user data directory moved
+from `~/.mercury-config/` to `~/.mc6/`. Migration is handled automatically:
+
+| Condition | Action |
+|---|---|
+| `~/.mercury-config/` exists AND `~/.mc6/` does not | Rename `~/.mercury-config/` → `~/.mc6/`. Print: `Migrated data: ~/.mercury-config/ → ~/.mc6/`. |
+| `~/.mercury-config/` exists AND `~/.mc6/` also exists | Do nothing. Both coexist — user may have manually created `~/.mc6/`. No data loss. |
+| Only `~/.mc6/` exists | Normal state post-migration. No action. |
+| Neither exists | First run. Subdirectories created on demand by `devices.py`, `session_log.py`, `checkpoint.py`. |
+
+Migration runs once, before argument parsing, on every entry point (`mc6` and the
+legacy `mercury-config` alias). The legacy `mercury-config` command prints a
+deprecation notice to stderr then delegates to `main()`.
+
+**The old AUR package (`python-c6-mercuryconfig-git`) should be replaced by
+`python-c6-mc6-git`.** The new package `conflicts=('python-c6-mercuryconfig-git')`
+and `replaces=('python-c6-mercuryconfig-git')` so pacman handles the transition.
+The legacy `mercury-config` entry point ensures scripts and muscle memory still
+work during the transition period.
 
 ---
 
@@ -333,7 +358,7 @@ not part of the standard flight config. Left at whatever they are.
 | 10.1 | Disconnect from Mercury WiFi: `nmcli connection down <mercury_connection>` | Non-critical. Warn: "Couldn't auto-disconnect Mercury WiFi. Reconnect to normal network manually." |
 | 10.2 | Restore previous WiFi (from Phase 0.5): `nmcli connection up <saved_name>` | **Print prominently:** "⚠ Could not restore WiFi. **Your laptop is NOT connected to the internet.** Reconnect manually." (At a launch site with no other WiFi, restoration will always fail — make this obvious.) |
 | 10.3 | Close serial port | |
-| 10.4 | Save session log to `~/.mercury-config/logs/config_{serial}_{timestamp}.log` | |
+| 10.4 | Save session log to `~/.mc6/logs/config_{serial}_{timestamp}.log` | |
 | 10.5 | Update managed devices list with last-configured timestamp | |
 | 10.6 | Print log file path | |
 
@@ -356,7 +381,7 @@ No unbounded waits. No `while True` without a counter. Specific values:
 
 Every action, response, user input, and error → appended to a timestamped log file.
 This is the audit trail. If a flight goes wrong, we can prove what the tool configured.
-Log path: `~/.mercury-config/logs/config_{serial}_{timestamp}.log`
+Log path: `~/.mc6/logs/config_{serial}_{timestamp}.log`
 
 ### Ctrl+C / SIGINT Handling
 
@@ -417,8 +442,8 @@ No emojis. Checkmarks (✓) and crosses (✗) for pass/fail. Clean, legible unde
 ## Directory Structure
 
 ```
-mercury-config/
-├── mercury_config/
+mc6/
+├── mc6/
 │   ├── __init__.py
 │   ├── main.py              # Entry point, CLI arg parsing
 │   ├── discovery.py          # Phase 0-1: env check, device discovery, USB polling
@@ -456,41 +481,41 @@ only module that prints to stdout. Everything else returns data or raises except
 
 ---
 
-## Open Questions (For Implementation)
+## Open Questions
 
-1. **~~`ver&` response format~~** — **RESOLVED.** Response is `VER:2.3`. Parser:
+1. ~~**`ver&` response format**~~ — **RESOLVED.** Response is `VER:2.3`. Parser:
    check for `VER:` prefix.
 
-2. **~~HTML form structure~~** — **RESOLVED.** `/settings/` HTML captured 2026-04-06.
+2. ~~**HTML form structure**~~ — **RESOLVED.** `/settings/` HTML captured 2026-04-06.
    All form field names, value mappings, and valid options now documented in golden
-   config table. Parser should extract `<input>` and `<select>` values. Form uses
+   config table. Parser extracts `<input>` and `<select>` values. Form uses
    GET with `sb=y` confirmation token.
 
-3. **Weather API**: Which free API for UK QNH? Met Office DataPoint? Open-Meteo?
-   Needs to work without API key registration if possible.
+3. ~~**Weather API**~~ — **RESOLVED.** Open-Meteo (no API key required). Implemented
+   in `weather.py` with 5s timeout and graceful fallback.
 
 4. **Absent fields behaviour**: Does sending `sb=y` with only SOME fields zero out
-   the missing ones? Must test empirically. Until confirmed safe, ALWAYS send ALL
-   fields (read-modify-write in Phase 8.1). Note: the form includes hidden field
-   `adjustlaunchangle=0` and ROC2 fields — these must be preserved in read-modify-write.
+   the missing ones? Not yet tested empirically. Implementation uses read-modify-write
+   (sends ALL fields) as the safe default. The form includes hidden field
+   `adjustlaunchangle=0` and ROC2 fields — these are preserved in read-modify-write.
 
-5. **~~Golden config field name audit~~** — **RESOLVED.** The RE NVS appendix had
+5. ~~**Golden config field name audit**~~ — **RESOLVED.** The RE NVS appendix had
    several wrong names and value mappings. The HTML form is ground truth. See
    corrections table above golden config.
 
-6. **~~`launchprotection` units~~** — **RESOLVED.** Form sends mG (1400 = 1.4G).
+6. ~~**`launchprotection` units**~~ — **RESOLVED.** Form sends mG (1400 = 1.4G).
 
 7. **SSID↔MAC derivation**: Still undocumented. The dump shows `MercuryAlt_4679`.
    Collecting more MAC→SSID pairs would let us reverse-engineer the derivation.
+   Current implementation saves the SSID↔serial mapping on first contact.
 
-8. **Boot banner serial extraction**: Can the tool reliably capture the serial
-   printed on CDC during cold boot (~0.7s)? Test empirically.
+8. ~~**Boot banner serial extraction**~~ — **RESOLVED.** Implemented in `cdc.py`
+   (`try_capture_boot_serial`). Works when boot is caught within ~0.7s. Falls back
+   to USB sysfs descriptor, then manual entry.
 
-9. **`/outputs/` page structure**: Need to capture the outputs/rules page HTML to
-   determine if `calc_density` and airbrake/servo/pyro fields live there. The
-   `/settings/` dump does not include `calc_density`. The spec says Phase 5.3 reads
-   `/outputs/` — we need its HTML too.
+9. ~~**`/outputs/` page structure**~~ — **RESOLVED.** `/outputs/` HTML captured
+   2026-04-06. `calc_density` confirmed on `/outputs/`. Parser handles both pages.
 
 10. **`unit_acc=2` effect on UART**: Does changing the acceleration unit setting
     affect UART output format, or only web UI and flash CSV? If UART changes, FC6's
-    parser needs to know. Test empirically.
+    parser needs to know. Not yet tested empirically.

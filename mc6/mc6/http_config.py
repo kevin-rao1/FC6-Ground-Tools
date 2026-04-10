@@ -15,8 +15,8 @@ from pathlib import Path
 
 import requests
 
-from mercury_config import session_log
-from mercury_config import ui
+from mc6 import session_log
+from mc6 import ui
 
 MERCURY_BASE_URL = "http://192.168.0.1"
 HTTP_CONNECT_TIMEOUT_S = 5
@@ -24,7 +24,7 @@ HTTP_READ_TIMEOUT_S = 10
 HTTP_RETRIES = 3
 HTTP_RETRY_DELAY_S = 3
 
-DEBUG_DUMP_DIR = Path.home() / ".mercury-config"
+DEBUG_DUMP_DIR = Path.home() / ".mc6"
 
 
 class HTTPConfigError(Exception):

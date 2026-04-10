@@ -294,7 +294,7 @@ def warning_replay(warnings_list: list[tuple[str, str]]) -> None:
 def banner() -> None:
     """Print startup banner. Forces terminal background to C6 Void."""
     _force_bg()
-    print(f"\n{_accent()}{_bold()}// MERCURY CONFIG TOOL{_reset()}  v0.1.0")
+    print(f"\n{_accent()}{_bold()}// MC6{_reset()}  v0.1.0")
     print(f"   FC6 Ground Tools — flight configuration for Mercury V1")
     print()
 

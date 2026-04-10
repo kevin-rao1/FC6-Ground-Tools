@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mercury-config"
+name = "mc6"
 dynamic = ["version"]
 description = "Mercury V1 altimeter flight configuration tool for FC6"
 requires-python = ">=3.10"
@@ -14,14 +14,15 @@ dependencies = [
 ]
 
 [project.scripts]
-mercury-config = "mercury_config.main:main"
+mc6 = "mc6.main:main"
+mercury-config = "mc6.main:main_legacy"
 
 [tool.setuptools.packages.find]
-include = ["mercury_config*"]
+include = ["mc6*"]
 
 [tool.setuptools.package-data]
-mercury_config = ["golden_configs/*.json"]
+mc6 = ["golden_configs/*.json"]
 
 [tool.setuptools_scm]
 root = ".."
-version_file = "mercury_config/_version.py"
+version_file = "mc6/_version.py"

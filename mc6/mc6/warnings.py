@@ -9,8 +9,8 @@ All flight-safety warnings are findable with: grep warnings.register
 
 from __future__ import annotations
 
-from mercury_config import session_log
-from mercury_config import ui
+from mc6 import session_log
+from mc6 import ui
 
 _MAX_WARNINGS = 64
 

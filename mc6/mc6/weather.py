@@ -7,7 +7,7 @@ overrides the value.
 
 from __future__ import annotations
 
-from mercury_config import session_log
+from mc6 import session_log
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 FETCH_TIMEOUT_S = 5

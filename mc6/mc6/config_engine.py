@@ -12,9 +12,9 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import NamedTuple
 
-from mercury_config import http_config
-from mercury_config import session_log
-from mercury_config import ui
+from mc6 import http_config
+from mc6 import session_log
+from mc6 import ui
 
 # Golden config directory: bundled inside the package
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden_configs"
@@ -172,7 +172,7 @@ def check_revision_crossmatch(
         return  # Field not present — can't cross-check
 
     if not values_equal(actual, expected):
-        from mercury_config import warnings
+        from mc6 import warnings
         warnings.register(
             "revision_mismatch",
             f"Device sample_speed is {actual} but Rev.{golden.revision} "
@@ -279,7 +279,7 @@ def prompt_qnh(
         if prefetched_qnh is not None:
             delta = abs(qnh - prefetched_qnh)
             if delta > QNH_WARN_DELTA:
-                from mercury_config import warnings
+                from mc6 import warnings
                 warnings.register(
                     "qnh_delta",
                     f"Entered QNH ({qnh:.1f}) differs from {launch_site} "

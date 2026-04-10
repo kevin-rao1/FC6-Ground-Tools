@@ -1,4 +1,4 @@
-"""Mercury Config Tool — main orchestration.
+"""MC6 — Mercury V1 altimeter flight configuration tool.
 
 Entry point for the CLI tool. Runs all 10 phases of the configuration
 flow. Handles SIGINT (Ctrl+C) for graceful teardown.
@@ -11,18 +11,19 @@ from __future__ import annotations
 import argparse
 import signal
 import sys
+from pathlib import Path
 
-from mercury_config import cdc
-from mercury_config import config_engine
-from mercury_config import devices
-from mercury_config import discovery
-from mercury_config import http_config
-from mercury_config import session_log
-from mercury_config import ui
-from mercury_config import warnings
-from mercury_config import weather
-from mercury_config import wifi
-from mercury_config import checkpoint
+from mc6 import cdc
+from mc6 import config_engine
+from mc6 import devices
+from mc6 import discovery
+from mc6 import http_config
+from mc6 import session_log
+from mc6 import ui
+from mc6 import warnings
+from mc6 import weather
+from mc6 import wifi
+from mc6 import checkpoint
 
 
 class _SessionState:
@@ -644,10 +645,20 @@ def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrate_data_dir() -> None:
+    """Migrate ~/.mercury-config/ to ~/.mc6/ if the old dir exists and the new one doesn't."""
+    old = Path.home() / ".mercury-config"
+    new = Path.home() / ".mc6"
+    if old.is_dir() and not new.exists():
+        old.rename(new)
+        print(f"   Migrated data: {old} → {new}")
+
+
 def main() -> None:
     """CLI entry point."""
+    _migrate_data_dir()
     parser = argparse.ArgumentParser(
-        prog="mercury-config",
+        prog="mc6",
         description="Mercury V1 altimeter flight configuration tool for FC6",
     )
     parser.add_argument(
@@ -677,6 +688,15 @@ def main() -> None:
         _teardown()
 
     sys.exit(exit_code)
+
+
+def main_legacy() -> None:
+    """Legacy entry point for 'mercury-config' command. Prints deprecation notice."""
+    print(
+        "\n   \033[33m⚠ 'mercury-config' is deprecated. Use 'mc6' instead.\033[0m\n",
+        file=sys.stderr,
+    )
+    main()
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime
 from pathlib import Path
 
-_LOG_DIR = Path.home() / ".mercury-config" / "logs"
+_LOG_DIR = Path.home() / ".mc6" / "logs"
 
 _log_file: Path | None = None
 _log_handle = None

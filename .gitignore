@@ -21,4 +21,4 @@ venv/
 aur/
 
 # Tool state
-.mercury-config/
+.mc6/

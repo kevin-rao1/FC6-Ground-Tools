@@ -13,8 +13,8 @@ import subprocess
 import time
 from pathlib import Path
 
-from mercury_config import session_log
-from mercury_config import ui
+from mc6 import session_log
+from mc6 import ui
 
 # ESP32-C6 USB-Serial/JTAG VID:PID
 MERCURY_VID = "303a"

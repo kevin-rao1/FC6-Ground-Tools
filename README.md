@@ -3,11 +3,11 @@
 Ground support tooling for C6 Aerospace's S-IX rockets. Designed to be idiotproof and auditable, even when used at the launch site under pre-launch stress.
 Linux (Arch) only. 
 
-## mercury-config
+## MC6
 
 CLI tool for configuring [Mercury V1](https://www.altimetercloud.com/) altimeters before flight. 
 
-Mercury's own configuration interface (Altimeter Cloud / the embedded web UI) requires manual interaction per device. With 7 Mercurys, config drift between devices is a real risk. mercury-config automates the entire flow: discover, diff against a golden config, patch, verify.
+Mercury's own configuration interface (Altimeter Cloud / the embedded web UI) requires manual interaction per device. With 7 Mercurys, config drift between devices is a real risk. MC6 automates the entire flow: discover, diff against a golden config, patch, verify.
 
 ### What it does
 
@@ -24,13 +24,13 @@ Mercury's own configuration interface (Altimeter Cloud / the embedded web UI) re
 From the AUR:
 
 ```
-paru -S python-c6-mercuryconfig-git
+paru -S python-c6-mc6-git
 ```
 
 Or from source:
 
 ```
-cd mercury-config
+cd mc6
 pip install -e .
 ```
 
@@ -38,10 +38,10 @@ pip install -e .
 
 ```
 # full auto (uses nmcli for WiFi)
-mercury-config
+mc6
 
 # connect to Mercury WiFi yourself
-mercury-config --manual-wifi
+mc6 --manual-wifi
 ```
 
 ### Dependencies
