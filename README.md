@@ -3,6 +3,9 @@
 Ground support tooling for C6 Aerospace's S-IX rockets. Designed to be idiotproof and auditable, even when used at the launch site under pre-launch stress.
 Linux (Arch) only. 
 
+As low-risk non-flight software, this has fully been written by AI with internal reverse-engineered documentation of the Mercury V1. Neil, please do not sue. 
+Main GitHub repo for flight firmware (private) [here](https://github.com/kevin-rao1/FC6)
+
 ## MC6
 
 CLI tool for configuring [Mercury V1](https://www.altimetercloud.com/) altimeters before flight. 
